@@ -3,7 +3,6 @@
 
 import { summarizeMedicalReport, type MedicalReportSummaryOutput } from "@/ai/flows/summarize-medical-report";
 import { z } from "zod";
-import pdf from "pdf-parse";
 
 const MAX_FILE_SIZE = 4 * 1024 * 1024; // 4MB
 const ACCEPTED_FILE_TYPES = ["application/pdf"];
@@ -34,6 +33,7 @@ export async function getSummary(values: z.infer<typeof formSchema>): Promise<{ 
     let reportText = validatedFields.data.reportText;
 
     if (validatedFields.data.file && validatedFields.data.file.size > 0) {
+      const pdf = (await import('pdf-parse')).default;
       const file = validatedFields.data.file as File;
       const buffer = Buffer.from(await file.arrayBuffer());
       const pdfData = await pdf(buffer);
