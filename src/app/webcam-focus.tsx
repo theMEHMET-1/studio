@@ -19,11 +19,12 @@ let drawingUtils: DrawingUtils;
 let lastVideoTime = -1;
 
 // Blink detection constants
-const EYE_ASPECT_RATIO_THRESHOLD = 0.2;
-const BLINK_CONSECUTIVE_FRAMES = 2;
+const EYE_ASPECT_RATIO_THRESHOLD = .175;
+const BLINK_CONSECUTIVE_FRAMES = 1;
 let blinkCounter = 0;
 let isBlinking = false;
 let blinkTimestamps: number[] = [];
+
 
 // Slouch detection constants
 const SLOUCH_THRESHOLD = 0.05; // Shoulders are 5% lower than their neutral position
@@ -169,15 +170,20 @@ export function WebcamFocus() {
           if (blinkCounter >= BLINK_CONSECUTIVE_FRAMES) {
             isBlinking = true;
             blinkTimestamps.push(Date.now());
+            
+            
+
           }
           blinkCounter = 0;
         }
 
+        
+
         const now = Date.now();
-        blinkTimestamps = blinkTimestamps.filter(timestamp => now - timestamp < 60000); // Keep last minute
+        blinkTimestamps = blinkTimestamps.filter(timestamp => now - timestamp < 30000); // Keep last minute
         const blinksPerMinute = blinkTimestamps.length;
 
-        if (blinksPerMinute < 10 || blinksPerMinute > 30) {
+        if (blinksPerMinute < 5 || blinksPerMinute > 15) {
             currentFocusPenalty += 0.1; // Small penalty per frame
         }
 
@@ -193,6 +199,10 @@ export function WebcamFocus() {
         drawingUtils.drawConnectors(landmarks, FaceLandmarker.FACE_LANDMARKS_RIGHT_EYE, { color: eyeColor });
 
       }
+
+      console.log(isBlinking);
+    
+
       
       if (poseResults.landmarks && poseResults.landmarks.length > 0) {
         const landmarks = poseResults.landmarks[0];
@@ -224,6 +234,12 @@ export function WebcamFocus() {
 
       // Update focus score
       setFocusScore(prevScore => {
+        console.log(prevScore);
+
+        if (poseResults.landmarks.length == 0){
+          return prevScore - 0.02;
+        }
+
         if (currentFocusPenalty > 0) {
           return Math.max(0, prevScore - currentFocusPenalty);
         }
