@@ -1,10 +1,11 @@
+
 "use client";
 
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Loader2 } from "lucide-react";
+import { Loader2, FileUp } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -28,21 +29,45 @@ import { getSummary } from "./actions";
 import { SummaryDisplay } from "@/components/summary-display";
 import type { MedicalReportSummaryOutput } from "@/ai/flows/summarize-medical-report";
 import { Card, CardContent } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+
+const MAX_FILE_SIZE = 4 * 1024 * 1024; // 4MB
+const ACCEPTED_FILE_TYPES = ["application/pdf"];
 
 const formSchema = z.object({
   reportText: z
     .string()
-    .min(50, "Please enter at least 50 characters.")
-    .max(10000, "Report is too long. Please keep it under 10,000 characters."),
+    .max(50000, "Report is too long. Please keep it under 50,000 characters.")
+    .optional(),
   language: z.enum(["en", "es", "tr"]).default("en"),
+  file: z
+    .any()
+    .refine((file) => !file || file.size <= MAX_FILE_SIZE, `Max file size is 4MB.`)
+    .refine(
+      (file) => !file || ACCEPTED_FILE_TYPES.includes(file.type),
+      "Only .pdf files are accepted."
+    ).optional(),
+}).refine(data => {
+  if (data.reportText && data.reportText.length > 0 && data.reportText.length < 50) return false;
+  return true;
+}, {
+  message: "Please enter at least 50 characters.",
+  path: ["reportText"],
+}).refine(data => !!data.reportText || !!data.file, {
+  message: "Please provide either text or a file.",
+  path: ["reportText"],
 });
+
+type FormValues = z.infer<typeof formSchema>;
 
 export default function ReportForm() {
   const [result, setResult] = useState<MedicalReportSummaryOutput | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  const [activeTab, setActiveTab] = useState("text");
 
-  const form = useForm<z.infer<typeof formSchema>>({
+  const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       reportText: "",
@@ -50,11 +75,26 @@ export default function ReportForm() {
     },
   });
 
-  async function onSubmit(values: z.infer<typeof formSchema>) {
+  async function onSubmit(values: FormValues) {
     setIsLoading(true);
     setResult(null);
 
-    const { data, error } = await getSummary(values);
+    const formData = new FormData();
+    formData.append("language", values.language);
+    if (values.reportText) {
+      formData.append("reportText", values.reportText);
+    }
+    if (values.file) {
+      formData.append("file", values.file);
+    }
+
+    const submissionValues = {
+      language: values.language,
+      reportText: values.reportText,
+      file: values.file,
+    }
+
+    const { data, error } = await getSummary(submissionValues);
 
     if (error) {
       toast({
@@ -75,26 +115,74 @@ export default function ReportForm() {
         <CardContent className="p-6">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              <FormField
-                control={form.control}
-                name="reportText"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-lg font-semibold">
-                      Medical Report Text
-                    </FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder="Paste your medical report text here..."
-                        className="min-h-[250px] resize-y"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <div className="flex flex-col sm:flex-row sm:items-end gap-4">
+              <Tabs value={activeTab} onValueChange={(value) => {
+                setActiveTab(value);
+                form.reset({
+                  ...form.getValues(),
+                  reportText: "",
+                  file: undefined,
+                })
+                form.clearErrors();
+              }} className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="text">Paste Text</TabsTrigger>
+                  <TabsTrigger value="pdf">Upload PDF</TabsTrigger>
+                </TabsList>
+                <TabsContent value="text">
+                  <FormField
+                    control={form.control}
+                    name="reportText"
+                    render={({ field }) => (
+                      <FormItem className="mt-6">
+                        <FormLabel className="text-lg font-semibold">
+                          Medical Report Text
+                        </FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder="Paste your medical report text here..."
+                            className="min-h-[250px] resize-y"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </TabsContent>
+                <TabsContent value="pdf">
+                  <FormField
+                    control={form.control}
+                    name="file"
+                    render={({ field }) => (
+                      <FormItem className="mt-6">
+                         <FormLabel className="text-lg font-semibold">
+                          Upload Report PDF
+                        </FormLabel>
+                        <FormControl>
+                          <div className="flex items-center justify-center w-full">
+                            <label htmlFor="dropzone-file" className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed rounded-lg cursor-pointer bg-secondary/50 hover:bg-secondary/80">
+                                <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                    <FileUp className="w-8 h-8 mb-4 text-muted-foreground" />
+                                    <p className="mb-2 text-sm text-muted-foreground">
+                                      <span className="font-semibold">Click to upload</span> or drag and drop
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">PDF (MAX. 4MB)</p>
+                                    {field.value?.name && <p className="mt-4 text-sm font-medium text-primary">{field.value.name}</p>}
+                                </div>
+                                <Input id="dropzone-file" type="file" className="hidden" accept=".pdf" 
+                                  onChange={(e) => field.onChange(e.target.files ? e.target.files[0] : null)}
+                                />
+                            </label>
+                          </div> 
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </TabsContent>
+              </Tabs>
+              
+              <div className="flex flex-col sm:flex-row sm:items-end gap-4 pt-4">
                 <FormField
                   control={form.control}
                   name="language"
