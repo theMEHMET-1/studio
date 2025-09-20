@@ -142,14 +142,9 @@ export function WebcamFocus() {
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
 
-      const faceResults = faceLandmarker.detectForVideo(
-        video,
-        performance.now()
-      );
-      const poseResults = poseLandmarker.detectForVideo(
-        video,
-        performance.now()
-      );
+      const startTimeMs = performance.now();
+      const faceResults = faceLandmarker.detectForVideo(video, startTimeMs);
+      const poseResults = poseLandmarker.detectForVideo(video, startTimeMs);
 
       canvasCtx.save();
       canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
