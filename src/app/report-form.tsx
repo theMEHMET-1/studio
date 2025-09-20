@@ -26,38 +26,38 @@ import {Loader2} from 'lucide-react';
 const MAX_FILE_SIZE = 4 * 1024 * 1024; // 4MB
 const ACCEPTED_FILE_TYPES = ['application/pdf'];
 
-const formSchema = z.object({
-  reportText: z.string().optional(),
-  reportFile: z
-    .any()
-    .refine(file => {
-      if (!file || !file.size) return true;
-      return file.size <= MAX_FILE_SIZE;
-    }, `Max file size is 4MB.`)
-    .refine(file => {
-      if (!file || !file.type) return true;
-      return ACCEPTED_FILE_TYPES.includes(file.type);
-    }, 'Only .pdf files are accepted.')
-    .optional(),
-  language: z.string().default('en'),
-}).refine(data => !!data.reportText || !!data.reportFile, {
-  message: "Please provide either text or a file.",
-  path: ['reportText'],
-});
-
+const formSchema = z
+  .object({
+    reportText: z.string().optional(),
+    reportFile: z
+      .any()
+      .refine(file => {
+        if (!file || !file.size) return true;
+        return file.size <= MAX_FILE_SIZE;
+      }, `Max file size is 4MB.`)
+      .refine(file => {
+        if (!file || !file.type) return true;
+        return ACCEPTED_FILE_TYPES.includes(file.type);
+      }, 'Only .pdf files are accepted.')
+      .optional(),
+    language: z.string().default('en'),
+  })
+  .refine(data => !!data.reportText || (data.reportFile && data.reportFile.size > 0), {
+    message: 'Please provide either text or a file.',
+    path: ['reportText'],
+  });
 
 export function ReportForm() {
   const [isPending, startTransition] = useTransition();
   const {toast} = useToast();
-  const [summary, setSummary] = useState<MedicalReportSummaryOutput | null>(
-    null
-  );
+  const [summary, setSummary] = useState<MedicalReportSummaryOutput | null>(null);
   const [activeTab, setActiveTab] = useState('text');
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       reportText: '',
+      reportFile: null,
       language: 'en',
     },
   });
@@ -67,19 +67,18 @@ export function ReportForm() {
 
     const formData = new FormData();
     if (activeTab === 'file' && values.reportFile) {
-        formData.append('reportFile', values.reportFile);
+      formData.append('reportFile', values.reportFile);
     } else if (activeTab === 'text' && values.reportText) {
-        formData.append('reportText', values.reportText);
+      formData.append('reportText', values.reportText);
     } else {
-        if (activeTab === 'text') {
-            form.setError('reportText', { type: 'manual', message: 'Please paste your medical report.' });
-        } else {
-            form.setError('reportFile', { type: 'manual', message: 'Please upload a PDF file.' });
-        }
-        return;
+      if (activeTab === 'text') {
+        form.setError('reportText', {type: 'manual', message: 'Please paste your medical report.'});
+      } else {
+        form.setError('reportFile', {type: 'manual', message: 'Please upload a PDF file.'});
+      }
+      return;
     }
     formData.append('language', values.language || 'en');
-
 
     startTransition(async () => {
       try {
@@ -108,9 +107,9 @@ export function ReportForm() {
       <Tabs
         defaultValue="text"
         className="w-full"
-        onValueChange={(value) => {
-            setActiveTab(value);
-            form.clearErrors();
+        onValueChange={value => {
+          setActiveTab(value);
+          form.clearErrors();
         }}
       >
         <TabsList className="grid w-full grid-cols-2">
@@ -142,22 +141,18 @@ export function ReportForm() {
               <FormField
                 control={form.control}
                 name="reportFile"
-                render={({field: {onChange, ...fieldProps}}) => (
+                render={({field: {onChange, value, ...fieldProps}}) => (
                   <FormItem>
                     <FormLabel>Medical Report File</FormLabel>
                     <FormControl>
                       <Input
                         type="file"
                         accept=".pdf"
-                        onChange={e =>
-                          onChange(e.target.files?.[0] ?? null)
-                        }
+                        onChange={e => onChange(e.target.files?.[0] ?? null)}
                         {...fieldProps}
                       />
                     </FormControl>
-                    <FormDescription>
-                      Upload a PDF of your medical report (max 4MB).
-                    </FormDescription>
+                    <FormDescription>Upload a PDF of your medical report (max 4MB).</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -179,9 +174,7 @@ export function ReportForm() {
             />
 
             <Button type="submit" disabled={isPending} className="w-full">
-              {isPending && (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              )}
+              {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Get Summary
             </Button>
           </form>
