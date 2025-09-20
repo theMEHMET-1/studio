@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+impoATIO_THRESHOLD = 0.2;
+const BLINK_CONSECUTIVE_FRAMES = 2;rt { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button'; // New import
@@ -20,11 +21,15 @@ let drawingUtils: DrawingUtils;
 let lastVideoTime = -1;
 
 // Blink detection constants
-const EYE_ASPECT_RATIO_THRESHOLD = 0.3;
+const EYE_ASPECT_RATIO_THRESHOLD = 0.175;
 const BLINK_CONSECUTIVE_FRAMES = 1;
+const MINBLINK = 10;
+const MAXBLINK = 30;
+
 let blinkCounter = 0;
 let isBlinking = false;
 let blinkTimestamps: number[] = [];
+
 
 // Slouch detection constants
 const SLOUCH_THRESHOLD = 0.05;
@@ -178,9 +183,14 @@ export function WebcamFocus() {
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
 
-      const startTimeMs = performance.now();
-      const faceResults = faceLandmarker.detectForVideo(video, startTimeMs);
-      const poseResults = poseLandmarker.detectForVideo(video, startTimeMs);
+      const faceResults = faceLandmarker.detectForVideo(
+        video,
+        performance.now()
+      );
+      const poseResults = poseLandmarker.detectForVideo(
+        video,
+        performance.now()
+      );
 
       canvasCtx.save();
       canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
@@ -205,17 +215,22 @@ export function WebcamFocus() {
           if (blinkCounter >= BLINK_CONSECUTIVE_FRAMES) {
             isBlinking = true;
             blinkTimestamps.push(Date.now());
+            
+            
+
           }
           blinkCounter = 0;
         }
 
+
         const now = Date.now();
-        blinkTimestamps = blinkTimestamps.filter(timestamp => now - timestamp < GRACE_PERIOD_MS);
+        blinkTimestamps = blinkTimestamps.filter(timestamp => now - timestamp < 60000); // Keep last minute
+
         const blinksPerMinute = blinkTimestamps.length;
 
-        if (now - startTimeRef.current > GRACE_PERIOD_MS) {
-            if (blinksPerMinute < 10 || blinksPerMinute > 30) {
-                currentFocusPenalty += 0.1;
+        if (blinksPerMinute < MINBLINK || blinksPerMinute > MAXBLINK) {
+            if (now - blinkTimestamps[0] > 30000) {
+                currentFocusPenalty += 0.1; // Small penalty per frame
             }
         }
 
@@ -232,6 +247,10 @@ export function WebcamFocus() {
 
       }
 
+      console.log(isBlinking);
+    
+
+      
       if (poseResults.landmarks && poseResults.landmarks.length > 0) {
         const landmarks = poseResults.landmarks[0];
 
@@ -240,6 +259,7 @@ export function WebcamFocus() {
         const leftHip = landmarks[23];
         const rightHip = landmarks[24];
 
+        
         if(leftShoulder && rightShoulder && leftHip && rightHip) {
           const shoulderY = (leftShoulder.y + rightShoulder.y) / 2;
           const hipY = (leftHip.y + rightHip.y) / 2;
@@ -259,6 +279,12 @@ export function WebcamFocus() {
       canvasCtx.restore();
 
       setFocusScore(prevScore => {
+        console.log(prevScore);
+
+        if (poseResults.landmarks.length == 0){
+          return prevScore - 0.02;
+        }
+
         if (currentFocusPenalty > 0) {
           return Math.max(0, prevScore - currentFocusPenalty);
         }
