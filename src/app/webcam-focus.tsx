@@ -5,6 +5,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+import { Button } from '@/components/ui/button'; // New import
 import {
   FaceLandmarker,
   PoseLandmarker,
@@ -19,14 +20,14 @@ let drawingUtils: DrawingUtils;
 let lastVideoTime = -1;
 
 // Blink detection constants
-const EYE_ASPECT_RATIO_THRESHOLD = 0.2;
-const BLINK_CONSECUTIVE_FRAMES = 2;
+const EYE_ASPECT_RATIO_THRESHOLD = 0.3;
+const BLINK_CONSECUTIVE_FRAMES = 1;
 let blinkCounter = 0;
 let isBlinking = false;
 let blinkTimestamps: number[] = [];
 
 // Slouch detection constants
-const SLOUCH_THRESHOLD = 0.05; // Shoulders are 5% lower than their neutral position
+const SLOUCH_THRESHOLD = 0.05;
 
 export function WebcamFocus() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -36,6 +37,22 @@ export function WebcamFocus() {
   );
   const [focusScore, setFocusScore] = useState(100);
   const { toast } = useToast();
+
+  const [hasWarned, setHasWarned] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const startTimeRef = useRef(Date.now());
+  const [isStarted, setIsStarted] = useState(false); // New state to track if the session has started
+
+  const SCORE_THRESHOLD = 70;
+  const GRACE_PERIOD_MS = 60000;
+  const AUDIO_URL = 'https://files.catbox.moe/6mqp49.mp3';
+
+  // Initialize the audio object on component mount
+  useEffect(() => {
+    if (!audioRef.current) {
+      audioRef.current = new Audio(AUDIO_URL);
+    }
+  }, []);
 
   useEffect(() => {
     const createLandmarkers = async () => {
@@ -63,47 +80,66 @@ export function WebcamFocus() {
     createLandmarkers();
   }, []);
 
+  // Effect to watch for score changes and trigger alerts
   useEffect(() => {
-    const getCameraPermission = async () => {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        setHasCameraPermission(false);
-        toast({
-          variant: 'destructive',
-          title: 'Camera Not Supported',
-          description: 'Your browser does not support camera access.',
-        });
-        return;
+    if (focusScore < SCORE_THRESHOLD && !hasWarned) {
+      if (audioRef.current) {
+        // audioRef.current.play() is now safe to call here because the user has
+        // already interacted with the page to start the session.
+        audioRef.current.play().catch(e => console.error("Audio playback failed:", e));
       }
+      toast({
+        variant: 'destructive',
+        title: 'Focus Alert!',
+        description: `Your focus score dropped to ${Math.round(focusScore)}%`,
+      });
+      setHasWarned(true);
+    } else if (focusScore >= SCORE_THRESHOLD && hasWarned) {
+      setHasWarned(false);
+    }
+  }, [focusScore, hasWarned, toast]);
 
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-        });
-        setHasCameraPermission(true);
+  // New function to handle starting the webcam session
+  const startWebcam = async () => {
+    if (isStarted) return; // Prevent multiple starts
+    setIsStarted(true);
 
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.addEventListener('loadeddata', predictWebcam);
-        }
-        if (canvasRef.current) {
-          drawingUtils = new DrawingUtils(
-            canvasRef.current.getContext('2d')!
-          );
-        }
-      } catch (error) {
-        console.error('Error accessing camera:', error);
-        setHasCameraPermission(false);
-        toast({
-          variant: 'destructive',
-          title: 'Camera Access Denied',
-          description:
-            'Please enable camera permissions in your browser settings to use this feature.',
-        });
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setHasCameraPermission(false);
+      toast({
+        variant: 'destructive',
+        title: 'Camera Not Supported',
+        description: 'Your browser does not support camera access.',
+      });
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+      });
+      setHasCameraPermission(true);
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.addEventListener('loadeddata', predictWebcam);
       }
-    };
-
-    getCameraPermission();
-  }, [toast]);
+      if (canvasRef.current) {
+        drawingUtils = new DrawingUtils(
+          canvasRef.current.getContext('2d')!
+        );
+      }
+    } catch (error) {
+      console.error('Error accessing camera:', error);
+      setHasCameraPermission(false);
+      toast({
+        variant: 'destructive',
+        title: 'Camera Access Denied',
+        description:
+          'Please enable camera permissions in your browser settings to use this feature.',
+      });
+    }
+  };
 
   const calculateEAR = (landmarks: NormalizedLandmark[], eyeIndices: number[]): number => {
     const p1 = landmarks[eyeIndices[0]];
@@ -151,7 +187,7 @@ export function WebcamFocus() {
 
       let currentFocusPenalty = 0;
       let isSlouching = false;
-      isBlinking = false; // Reset blink state per frame
+      isBlinking = false;
 
       if (faceResults.faceLandmarks && faceResults.faceLandmarks.length > 0) {
         const landmarks = faceResults.faceLandmarks[0];
@@ -174,11 +210,13 @@ export function WebcamFocus() {
         }
 
         const now = Date.now();
-        blinkTimestamps = blinkTimestamps.filter(timestamp => now - timestamp < 60000); // Keep last minute
+        blinkTimestamps = blinkTimestamps.filter(timestamp => now - timestamp < GRACE_PERIOD_MS);
         const blinksPerMinute = blinkTimestamps.length;
 
-        if (blinksPerMinute < 10 || blinksPerMinute > 30) {
-            currentFocusPenalty += 0.1; // Small penalty per frame
+        if (now - startTimeRef.current > GRACE_PERIOD_MS) {
+            if (blinksPerMinute < 10 || blinksPerMinute > 30) {
+                currentFocusPenalty += 0.1;
+            }
         }
 
         // Draw face landmarks
@@ -187,13 +225,13 @@ export function WebcamFocus() {
           FaceLandmarker.FACE_LANDMARKS_TESSELATION,
           { color: '#C0C0C070', lineWidth: 1 }
         );
-        
-        const eyeColor = isBlinking ? '#FF0000' : '#30FF30'; // Red for blink, green otherwise
+
+        const eyeColor = isBlinking ? '#FF0000' : '#30FF30';
         drawingUtils.drawConnectors(landmarks, FaceLandmarker.FACE_LANDMARKS_LEFT_EYE, { color: eyeColor });
         drawingUtils.drawConnectors(landmarks, FaceLandmarker.FACE_LANDMARKS_RIGHT_EYE, { color: eyeColor });
 
       }
-      
+
       if (poseResults.landmarks && poseResults.landmarks.length > 0) {
         const landmarks = poseResults.landmarks[0];
 
@@ -201,19 +239,17 @@ export function WebcamFocus() {
         const rightShoulder = landmarks[12];
         const leftHip = landmarks[23];
         const rightHip = landmarks[24];
-        
+
         if(leftShoulder && rightShoulder && leftHip && rightHip) {
           const shoulderY = (leftShoulder.y + rightShoulder.y) / 2;
           const hipY = (leftHip.y + rightHip.y) / 2;
-          
-          // Simplified slouch detection
+
           if (shoulderY > hipY + SLOUCH_THRESHOLD) {
              isSlouching = true;
-             currentFocusPenalty += 0.2; // Heavier penalty for slouching
+             currentFocusPenalty += 0.2;
           }
         }
 
-        // Draw pose landmarks
         drawingUtils.drawConnectors(landmarks, PoseLandmarker.POSE_CONNECTIONS);
         drawingUtils.drawLandmarks(landmarks, {
           color: isSlouching ? '#FF0000' : '#00FF00',
@@ -222,12 +258,10 @@ export function WebcamFocus() {
       }
       canvasCtx.restore();
 
-      // Update focus score
       setFocusScore(prevScore => {
         if (currentFocusPenalty > 0) {
           return Math.max(0, prevScore - currentFocusPenalty);
         }
-        // Slowly recover score if no penalties
         return Math.min(100, prevScore + 0.05);
       });
     }
@@ -259,6 +293,12 @@ export function WebcamFocus() {
                     Please allow camera access to use this feature.
                   </AlertDescription>
                 </Alert>
+              </div>
+            )}
+            {/* Show a start button if the session hasn't started */}
+            {!isStarted && (
+              <div className="absolute inset-0 flex items-center justify-center p-4 bg-black/50">
+                <Button onClick={startWebcam}>Start Webcam Session</Button>
               </div>
             )}
           </div>
