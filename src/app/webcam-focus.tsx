@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+impoATIO_THRESHOLD = 0.2;
+const BLINK_CONSECUTIVE_FRAMES = 2;rt { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import {
@@ -19,8 +20,11 @@ let drawingUtils: DrawingUtils;
 let lastVideoTime = -1;
 
 // Blink detection constants
-const EYE_ASPECT_RATIO_THRESHOLD = .175;
+const EYE_ASPECT_RATIO_THRESHOLD = 0.3;
 const BLINK_CONSECUTIVE_FRAMES = 1;
+const MINBLINK = 10;
+const MAXBLINK = 30;
+
 let blinkCounter = 0;
 let isBlinking = false;
 let blinkTimestamps: number[] = [];
@@ -143,9 +147,14 @@ export function WebcamFocus() {
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
 
-      const startTimeMs = performance.now();
-      const faceResults = faceLandmarker.detectForVideo(video, startTimeMs);
-      const poseResults = poseLandmarker.detectForVideo(video, startTimeMs);
+      const faceResults = faceLandmarker.detectForVideo(
+        video,
+        performance.now()
+      );
+      const poseResults = poseLandmarker.detectForVideo(
+        video,
+        performance.now()
+      );
 
       canvasCtx.save();
       canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
@@ -177,14 +186,16 @@ export function WebcamFocus() {
           blinkCounter = 0;
         }
 
-        
 
         const now = Date.now();
-        blinkTimestamps = blinkTimestamps.filter(timestamp => now - timestamp < 30000); // Keep last minute
+        blinkTimestamps = blinkTimestamps.filter(timestamp => now - timestamp < 60000); // Keep last minute
+
         const blinksPerMinute = blinkTimestamps.length;
 
-        if (blinksPerMinute < 5 || blinksPerMinute > 15) {
-            currentFocusPenalty += 0.1; // Small penalty per frame
+        if (blinksPerMinute < MINBLINK || blinksPerMinute > MAXBLINK) {
+            if (now - blinkTimestamps[0] > 30000) {
+                currentFocusPenalty += 0.1; // Small penalty per frame
+            }
         }
 
         // Draw face landmarks
@@ -211,6 +222,7 @@ export function WebcamFocus() {
         const rightShoulder = landmarks[12];
         const leftHip = landmarks[23];
         const rightHip = landmarks[24];
+
         
         if(leftShoulder && rightShoulder && leftHip && rightHip) {
           const shoulderY = (leftShoulder.y + rightShoulder.y) / 2;
