@@ -18,9 +18,10 @@ const inputSchema = z.object({
     )
     .optional(),
   language: z.string().default('en'),
-}).refine(data => !!data.reportText || !!data.reportFile, {
+}).refine(data => !!data.reportText || (data.reportFile && data.reportFile.size > 0), {
   message: "Please provide either text or a file.",
 });
+
 
 export async function getSummary(formData: FormData): Promise<{
   summary?: MedicalReportSummaryOutput;
@@ -31,7 +32,12 @@ export async function getSummary(formData: FormData): Promise<{
     let reportText = formData.get('reportText') as string | null;
     const language = formData.get('language') as string | 'en';
 
-    const validation = inputSchema.safeParse({ reportFile: reportFile && reportFile.size > 0 ? reportFile : undefined, reportText: reportText || undefined, language });
+    const validation = inputSchema.safeParse({
+      reportFile: reportFile && reportFile.size > 0 ? reportFile : undefined,
+      reportText: reportText || undefined,
+      language
+    });
+
 
     if (!validation.success) {
       return { error: validation.error.errors.map(e => e.message).join(', ') };
@@ -40,7 +46,7 @@ export async function getSummary(formData: FormData): Promise<{
     let textToSummarize = reportText;
 
     if (reportFile && reportFile.size > 0) {
-      const pdf = (await import('pdf-parse')).default;
+      const pdf = require('pdf-parse');
       const data = await reportFile.arrayBuffer();
       const pdfData = await pdf(Buffer.from(data));
       textToSummarize = pdfData.text;
