@@ -10,12 +10,23 @@ import {
   PoseLandmarker,
   FilesetResolver,
   DrawingUtils,
+  NormalizedLandmark,
 } from '@mediapipe/tasks-vision';
 
 let faceLandmarker: FaceLandmarker;
 let poseLandmarker: PoseLandmarker;
 let drawingUtils: DrawingUtils;
 let lastVideoTime = -1;
+
+// Blink detection constants
+const EYE_ASPECT_RATIO_THRESHOLD = 0.2;
+const BLINK_CONSECUTIVE_FRAMES = 2;
+let blinkCounter = 0;
+let isBlinking = false;
+let blinkTimestamps: number[] = [];
+
+// Slouch detection constants
+const SLOUCH_THRESHOLD = 0.05; // Shoulders are 5% lower than their neutral position
 
 export function WebcamFocus() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -94,6 +105,23 @@ export function WebcamFocus() {
     getCameraPermission();
   }, [toast]);
 
+  const calculateEAR = (landmarks: NormalizedLandmark[], eyeIndices: number[]): number => {
+    const p1 = landmarks[eyeIndices[0]];
+    const p2 = landmarks[eyeIndices[1]];
+    const p3 = landmarks[eyeIndices[2]];
+    const p4 = landmarks[eyeIndices[3]];
+    const p5 = landmarks[eyeIndices[4]];
+    const p6 = landmarks[eyeIndices[5]];
+
+    const distance = (pA: NormalizedLandmark, pB: NormalizedLandmark) =>
+      Math.sqrt((pA.x - pB.x) ** 2 + (pA.y - pB.y) ** 2);
+
+    const verticalDist = distance(p2, p6) + distance(p3, p5);
+    const horizontalDist = distance(p1, p4);
+
+    return verticalDist / (2 * horizontalDist);
+  };
+
   const predictWebcam = () => {
     if (
       !videoRef.current ||
@@ -126,24 +154,87 @@ export function WebcamFocus() {
       canvasCtx.save();
       canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
 
-      if (faceResults.faceLandmarks) {
-        for (const landmarks of faceResults.faceLandmarks) {
-          drawingUtils.drawConnectors(
-            landmarks,
-            FaceLandmarker.FACE_LANDMARKS_TESSELATION,
-            { color: '#C0C0C070', lineWidth: 1 }
-          );
+      let currentFocusPenalty = 0;
+      let isSlouching = false;
+      isBlinking = false; // Reset blink state per frame
+
+      if (faceResults.faceLandmarks && faceResults.faceLandmarks.length > 0) {
+        const landmarks = faceResults.faceLandmarks[0];
+
+        // Left eye (indices based on MediaPipe docs)
+        const leftEAR = calculateEAR(landmarks, [33, 160, 158, 133, 153, 144]);
+        // Right eye
+        const rightEAR = calculateEAR(landmarks, [362, 385, 387, 263, 373, 380]);
+
+        const avgEAR = (leftEAR + rightEAR) / 2;
+
+        if (avgEAR < EYE_ASPECT_RATIO_THRESHOLD) {
+          blinkCounter++;
+        } else {
+          if (blinkCounter >= BLINK_CONSECUTIVE_FRAMES) {
+            isBlinking = true;
+            blinkTimestamps.push(Date.now());
+          }
+          blinkCounter = 0;
         }
+
+        const now = Date.now();
+        blinkTimestamps = blinkTimestamps.filter(timestamp => now - timestamp < 60000); // Keep last minute
+        const blinksPerMinute = blinkTimestamps.length;
+
+        if (blinksPerMinute < 10 || blinksPerMinute > 30) {
+            currentFocusPenalty += 0.1; // Small penalty per frame
+        }
+
+        // Draw face landmarks
+        drawingUtils.drawConnectors(
+          landmarks,
+          FaceLandmarker.FACE_LANDMARKS_TESSELATION,
+          { color: '#C0C0C070', lineWidth: 1 }
+        );
+        
+        const eyeColor = isBlinking ? '#FF0000' : '#30FF30'; // Red for blink, green otherwise
+        drawingUtils.drawConnectors(landmarks, FaceLandmarker.FACE_LANDMARKS_LEFT_EYE, { color: eyeColor });
+        drawingUtils.drawConnectors(landmarks, FaceLandmarker.FACE_LANDMARKS_RIGHT_EYE, { color: eyeColor });
+
       }
-      if (poseResults.landmarks) {
-        for (const landmarks of poseResults.landmarks) {
-          drawingUtils.drawConnectors(landmarks, PoseLandmarker.POSE_CONNECTIONS);
-          drawingUtils.drawLandmarks(landmarks, {
-            radius: (data) => DrawingUtils.lerp(data.from!.z, -0.15, 0.1, 5, 1),
-          });
+      
+      if (poseResults.landmarks && poseResults.landmarks.length > 0) {
+        const landmarks = poseResults.landmarks[0];
+
+        const leftShoulder = landmarks[11];
+        const rightShoulder = landmarks[12];
+        const leftHip = landmarks[23];
+        const rightHip = landmarks[24];
+        
+        if(leftShoulder && rightShoulder && leftHip && rightHip) {
+          const shoulderY = (leftShoulder.y + rightShoulder.y) / 2;
+          const hipY = (leftHip.y + rightHip.y) / 2;
+          
+          // Simplified slouch detection
+          if (shoulderY > hipY + SLOUCH_THRESHOLD) {
+             isSlouching = true;
+             currentFocusPenalty += 0.2; // Heavier penalty for slouching
+          }
         }
+
+        // Draw pose landmarks
+        drawingUtils.drawConnectors(landmarks, PoseLandmarker.POSE_CONNECTIONS);
+        drawingUtils.drawLandmarks(landmarks, {
+          color: isSlouching ? '#FF0000' : '#00FF00',
+          radius: (data) => DrawingUtils.lerp(data.from!.z, -0.15, 0.1, 5, 1),
+        });
       }
       canvasCtx.restore();
+
+      // Update focus score
+      setFocusScore(prevScore => {
+        if (currentFocusPenalty > 0) {
+          return Math.max(0, prevScore - currentFocusPenalty);
+        }
+        // Slowly recover score if no penalties
+        return Math.min(100, prevScore + 0.05);
+      });
     }
 
     requestAnimationFrame(predictWebcam);
