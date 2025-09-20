@@ -12,6 +12,7 @@ import {
   DrawingUtils,
   NormalizedLandmark,
 } from '@mediapipe/tasks-vision';
+import {calculateEAR} from "./utils.ts";
 
 let faceLandmarker: FaceLandmarker;
 let poseLandmarker: PoseLandmarker;
@@ -19,7 +20,7 @@ let drawingUtils: DrawingUtils;
 let lastVideoTime = -1;
 
 // Blink detection constants
-const EYE_ASPECT_RATIO_THRESHOLD = 0.3;
+const EYE_ASPECT_RATIO_THRESHOLD = 0.15;
 const BLINK_CONSECUTIVE_FRAMES = 1;
 const MINBLINK = 10;
 const MAXBLINK = 30;
@@ -107,23 +108,6 @@ export function WebcamFocus() {
 
     getCameraPermission();
   }, [toast]);
-
-  const calculateEAR = (landmarks: NormalizedLandmark[], eyeIndices: number[]): number => {
-    const p1 = landmarks[eyeIndices[0]];
-    const p2 = landmarks[eyeIndices[1]];
-    const p3 = landmarks[eyeIndices[2]];
-    const p4 = landmarks[eyeIndices[3]];
-    const p5 = landmarks[eyeIndices[4]];
-    const p6 = landmarks[eyeIndices[5]];
-
-    const distance = (pA: NormalizedLandmark, pB: NormalizedLandmark) =>
-      Math.sqrt((pA.x - pB.x) ** 2 + (pA.y - pB.y) ** 2);
-
-    const verticalDist = distance(p2, p6) + distance(p3, p5);
-    const horizontalDist = distance(p1, p4);
-
-    return verticalDist / (2 * horizontalDist);
-  };
 
   const predictWebcam = () => {
     if (
