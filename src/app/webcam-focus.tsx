@@ -20,7 +20,7 @@ let drawingUtils: DrawingUtils;
 let lastVideoTime = -1;
 
 // Blink detection constants
-const EYE_ASPECT_RATIO_THRESHOLD = 0.3;
+const EYE_ASPECT_RATIO_THRESHOLD = 0.175;
 const BLINK_CONSECUTIVE_FRAMES = 1;
 const MINBLINK = 10;
 const MAXBLINK = 30;
