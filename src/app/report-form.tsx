@@ -40,7 +40,11 @@ const formSchema = z.object({
     }, 'Only .pdf files are accepted.')
     .optional(),
   language: z.string().default('en'),
+}).refine(data => !!data.reportText || !!data.reportFile, {
+  message: "Please provide either text or a file.",
+  path: ['reportText'],
 });
+
 
 export function ReportForm() {
   const [isPending, startTransition] = useTransition();
@@ -61,32 +65,23 @@ export function ReportForm() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setSummary(null);
 
-    if (activeTab === 'text' && !values.reportText) {
-      form.setError('reportText', {
-        type: 'manual',
-        message: 'Please paste your medical report.',
-      });
-      return;
+    const formData = new FormData();
+    if (activeTab === 'file' && values.reportFile) {
+        formData.append('reportFile', values.reportFile);
+    } else if (activeTab === 'text' && values.reportText) {
+        formData.append('reportText', values.reportText);
+    } else {
+        if (activeTab === 'text') {
+            form.setError('reportText', { type: 'manual', message: 'Please paste your medical report.' });
+        } else {
+            form.setError('reportFile', { type: 'manual', message: 'Please upload a PDF file.' });
+        }
+        return;
     }
+    formData.append('language', values.language || 'en');
 
-    if (activeTab === 'file' && !values.reportFile) {
-      form.setError('reportFile', {
-        type: 'manual',
-        message: 'Please upload a PDF file.',
-      });
-      return;
-    }
 
     startTransition(async () => {
-      const formData = new FormData();
-      if (values.reportFile) {
-        formData.append('reportFile', values.reportFile);
-      }
-      if (values.reportText) {
-        formData.append('reportText', values.reportText);
-      }
-      formData.append('language', values.language);
-
       try {
         const result = await getSummary(formData);
         if (result.error) {
@@ -113,7 +108,10 @@ export function ReportForm() {
       <Tabs
         defaultValue="text"
         className="w-full"
-        onValueChange={setActiveTab}
+        onValueChange={(value) => {
+            setActiveTab(value);
+            form.clearErrors();
+        }}
       >
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="text">Paste Text</TabsTrigger>
@@ -144,7 +142,7 @@ export function ReportForm() {
               <FormField
                 control={form.control}
                 name="reportFile"
-                render={({field}) => (
+                render={({field: {onChange, ...fieldProps}}) => (
                   <FormItem>
                     <FormLabel>Medical Report File</FormLabel>
                     <FormControl>
@@ -152,8 +150,9 @@ export function ReportForm() {
                         type="file"
                         accept=".pdf"
                         onChange={e =>
-                          field.onChange(e.target.files?.[0] ?? null)
+                          onChange(e.target.files?.[0] ?? null)
                         }
+                        {...fieldProps}
                       />
                     </FormControl>
                     <FormDescription>
@@ -202,14 +201,6 @@ export function ReportForm() {
           </CardHeader>
           <CardContent>
             <p className="whitespace-pre-wrap">{summary.summary}</p>
-            {summary.audioSummary && (
-              <div className="mt-4">
-                <p className="font-semibold mb-2">Listen to the summary:</p>
-                <audio controls src={summary.audioSummary} className="w-full">
-                  Your browser does not support the audio element.
-                </audio>
-              </div>
-            )}
           </CardContent>
         </Card>
       )}

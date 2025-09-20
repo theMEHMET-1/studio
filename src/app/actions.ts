@@ -18,6 +18,8 @@ const inputSchema = z.object({
     )
     .optional(),
   language: z.string().default('en'),
+}).refine(data => !!data.reportText || !!data.reportFile, {
+  message: "Please provide either text or a file.",
 });
 
 export async function getSummary(formData: FormData): Promise<{
@@ -26,10 +28,11 @@ export async function getSummary(formData: FormData): Promise<{
 }> {
   try {
     const reportFile = formData.get('reportFile') as File | null;
-    const reportText = formData.get('reportText') as string | null;
+    let reportText = formData.get('reportText') as string | null;
     const language = formData.get('language') as string | 'en';
 
-    const validation = inputSchema.safeParse({ reportFile, reportText, language });
+    const validation = inputSchema.safeParse({ reportFile: reportFile && reportFile.size > 0 ? reportFile : undefined, reportText: reportText || undefined, language });
+
     if (!validation.success) {
       return { error: validation.error.errors.map(e => e.message).join(', ') };
     }
