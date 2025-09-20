@@ -66,7 +66,7 @@ export function ReportForm() {
     setSummary(null);
 
     const formData = new FormData();
-    if (activeTab === 'file' && values.reportFile) {
+    if (activeTab === 'file' && values.reportFile && values.reportFile.size > 0) {
       formData.append('reportFile', values.reportFile);
     } else if (activeTab === 'text' && values.reportText) {
       formData.append('reportText', values.reportText);
