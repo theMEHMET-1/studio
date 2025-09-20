@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+impoATIO_THRESHOLD = 0.2;
+const BLINK_CONSECUTIVE_FRAMES = 2;rt { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import {
@@ -20,7 +21,7 @@ let drawingUtils: DrawingUtils;
 let lastVideoTime = -1;
 
 // Blink detection constants
-const EYE_ASPECT_RATIO_THRESHOLD = 0.15;
+const EYE_ASPECT_RATIO_THRESHOLD = 0.175;
 const BLINK_CONSECUTIVE_FRAMES = 1;
 const MINBLINK = 10;
 const MAXBLINK = 30;
@@ -28,6 +29,7 @@ const MAXBLINK = 30;
 let blinkCounter = 0;
 let isBlinking = false;
 let blinkTimestamps: number[] = [];
+
 
 // Slouch detection constants
 const SLOUCH_THRESHOLD = 0.05; // Shoulders are 5% lower than their neutral position
@@ -161,6 +163,9 @@ export function WebcamFocus() {
           if (blinkCounter >= BLINK_CONSECUTIVE_FRAMES) {
             isBlinking = true;
             blinkTimestamps.push(Date.now());
+            
+            
+
           }
           blinkCounter = 0;
         }
@@ -189,6 +194,10 @@ export function WebcamFocus() {
         drawingUtils.drawConnectors(landmarks, FaceLandmarker.FACE_LANDMARKS_RIGHT_EYE, { color: eyeColor });
 
       }
+
+      console.log(isBlinking);
+    
+
       
       if (poseResults.landmarks && poseResults.landmarks.length > 0) {
         const landmarks = poseResults.landmarks[0];
@@ -221,6 +230,12 @@ export function WebcamFocus() {
 
       // Update focus score
       setFocusScore(prevScore => {
+        console.log(prevScore);
+
+        if (poseResults.landmarks.length == 0){
+          return prevScore - 0.02;
+        }
+
         if (currentFocusPenalty > 0) {
           return Math.max(0, prevScore - currentFocusPenalty);
         }
