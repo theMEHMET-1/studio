@@ -2,8 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
-impoATIO_THRESHOLD = 0.2;
-const BLINK_CONSECUTIVE_FRAMES = 2;rt { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import {
@@ -212,6 +211,7 @@ export function WebcamFocus() {
       }
 
       console.log(isBlinking);
+
     
 
       
@@ -220,20 +220,25 @@ export function WebcamFocus() {
 
         const leftShoulder = landmarks[11];
         const rightShoulder = landmarks[12];
-        const leftHip = landmarks[23];
-        const rightHip = landmarks[24];
+
+        console.log(landmarks[9].x, "x");
+        console.log(landmarks[9].y, "y");
+        console.log(landmarks[9].z, "z");
+        
 
         
-        if(leftShoulder && rightShoulder && leftHip && rightHip) {
-          const shoulderY = (leftShoulder.y + rightShoulder.y) / 2;
-          const hipY = (leftHip.y + rightHip.y) / 2;
+
+        
+        // if(leftShoulder && rightShoulder) {
+        //   const shoulderY = (leftShoulder.y + rightShoulder.y) / 2;
+        //   // const hipY = (leftHip.y + rightHip.y) / 2;
           
-          // Simplified slouch detection
-          if (shoulderY > hipY + SLOUCH_THRESHOLD) {
-             isSlouching = true;
-             currentFocusPenalty += 0.2; // Heavier penalty for slouching
-          }
-        }
+        //   // Simplified slouch detection
+        //   if (shoulderY > hipY + SLOUCH_THRESHOLD) {
+        //      isSlouching = true;
+        //      currentFocusPenalty += 0.2; // Heavier penalty for slouching
+        //   }
+        // }
 
         // Draw pose landmarks
         drawingUtils.drawConnectors(landmarks, PoseLandmarker.POSE_CONNECTIONS);
