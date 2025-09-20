@@ -2,8 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
-impoATIO_THRESHOLD = 0.2;
-const BLINK_CONSECUTIVE_FRAMES = 2;rt { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import {
@@ -11,9 +10,8 @@ import {
   PoseLandmarker,
   FilesetResolver,
   DrawingUtils,
-  NormalizedLandmark,
 } from '@mediapipe/tasks-vision';
-import {calculateEAR} from "./utils.ts";
+import {calculateEAR, distance} from "./utils.ts";
 
 let faceLandmarker: FaceLandmarker;
 let poseLandmarker: PoseLandmarker;
@@ -163,13 +161,9 @@ export function WebcamFocus() {
           if (blinkCounter >= BLINK_CONSECUTIVE_FRAMES) {
             isBlinking = true;
             blinkTimestamps.push(Date.now());
-            
-            
-
           }
           blinkCounter = 0;
         }
-
 
         const now = Date.now();
         blinkTimestamps = blinkTimestamps.filter(timestamp => now - timestamp < 60000); // Keep last minute
@@ -195,43 +189,38 @@ export function WebcamFocus() {
 
       }
 
-      console.log(isBlinking);
-    
+      //if (poseResults.landmarks && poseResults.landmarks.length > 0) {
+      //  const landmarks = poseResults.landmarks[0];
 
-      
-      if (poseResults.landmarks && poseResults.landmarks.length > 0) {
-        const landmarks = poseResults.landmarks[0];
+      //  const leftShoulder = landmarks[11];
+      //  const rightShoulder = landmarks[12];
+      //  const leftHip = landmarks[23];
+      //  const rightHip = landmarks[24];
 
-        const leftShoulder = landmarks[11];
-        const rightShoulder = landmarks[12];
-        const leftHip = landmarks[23];
-        const rightHip = landmarks[24];
+      //  
+      //  if(leftShoulder && rightShoulder && leftHip && rightHip) {
+      //    const shoulderY = (leftShoulder.y + rightShoulder.y) / 2;
+      //    const hipY = (leftHip.y + rightHip.y) / 2;
+      //    
+      //    // Simplified slouch detection
+      //    if (shoulderY > hipY + SLOUCH_THRESHOLD) {
+      //       isSlouching = true;
+      //       currentFocusPenalty += 0.2; // Heavier penalty for slouching
+      //    }
+      //  }
 
-        
-        if(leftShoulder && rightShoulder && leftHip && rightHip) {
-          const shoulderY = (leftShoulder.y + rightShoulder.y) / 2;
-          const hipY = (leftHip.y + rightHip.y) / 2;
-          
-          // Simplified slouch detection
-          if (shoulderY > hipY + SLOUCH_THRESHOLD) {
-             isSlouching = true;
-             currentFocusPenalty += 0.2; // Heavier penalty for slouching
-          }
-        }
+      //  // Draw pose landmarks
+      //  drawingUtils.drawConnectors(landmarks, PoseLandmarker.POSE_CONNECTIONS);
+      //  drawingUtils.drawLandmarks(landmarks, {
+      //    color: isSlouching ? '#FF0000' : '#00FF00',
+      //    radius: (data) => DrawingUtils.lerp(data.from!.z, -0.15, 0.1, 5, 1),
+      //  });
+      //}
 
-        // Draw pose landmarks
-        drawingUtils.drawConnectors(landmarks, PoseLandmarker.POSE_CONNECTIONS);
-        drawingUtils.drawLandmarks(landmarks, {
-          color: isSlouching ? '#FF0000' : '#00FF00',
-          radius: (data) => DrawingUtils.lerp(data.from!.z, -0.15, 0.1, 5, 1),
-        });
-      }
       canvasCtx.restore();
 
       // Update focus score
       setFocusScore(prevScore => {
-        console.log(prevScore);
-
         if (poseResults.landmarks.length == 0){
           return prevScore - 0.02;
         }

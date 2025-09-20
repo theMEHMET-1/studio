@@ -23,4 +23,3 @@ export function calculateEAR(landmarks: NormalizedLandmark[], eyeIndices: number
 
   return verticalDist / (2 * horizontalDist);
 }
-
