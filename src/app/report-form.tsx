@@ -73,20 +73,12 @@ export default function ReportForm() {
       reportText: "",
       language: "en",
     },
+    mode: "onChange"
   });
 
   async function onSubmit(values: FormValues) {
     setIsLoading(true);
     setResult(null);
-
-    const formData = new FormData();
-    formData.append("language", values.language);
-    if (values.reportText) {
-      formData.append("reportText", values.reportText);
-    }
-    if (values.file) {
-      formData.append("file", values.file);
-    }
 
     const submissionValues = {
       language: values.language,
