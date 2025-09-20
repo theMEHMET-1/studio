@@ -1,0 +1,71 @@
+diff --git a/node_modules/pdf-parse/index.js b/node_modules/pdf-parse/index.js
+index 4773c38..3c8a164 100644
+--- a/node_modules/pdf-parse/index.js
++++ b/node_modules/pdf-parse/index.js
+@@ -1,6 +1,5 @@
+ const path = require('path');
+ const fs = require('fs');
+-const test = require('assert');
+ const PDFJS = require('./lib/pdf.js');
+ 
+ const DEFAULT_OPTIONS = {
+@@ -10,13 +9,6 @@ const DEFAULT_OPTIONS = {
+ 	//pagerender: render_page,
+ }
+ 
+-function render_page(pageData) {
+-	//check documents https://mozilla.github.io/pdf.js/
+-	let render_options = {
+-		//replaces all occurrences of whitespace with standard spaces (0x20). The default value is `false`.
+-		normalizeWhitespace: false,
+-		//do not attempt to combine same line TextItem's. The default value is `false`.
+-		disableCombineTextItems: false
+-	}
+-
+-	return pageData.getTextContent(render_options)
+-	.then(function(textContent) {
+-		let lastY, text = '';
+-		for (let item of textContent.items) {
+-			if (lastY == item.transform[5] || !lastY){
+-				text += item.str;
+-			}  
+-			else{
+-				text += '\n' + item.str;
+-			}    
+-			lastY = item.transform[5];
+-		}
+-		return text;
+-	});
+-}
+-
+-let PDF = function(dataBuffer, options) {
+-	let self = this;
+-	//deep copy
+-	let newOptions = JSON.parse(JSON.stringify(DEFAULT_OPTIONS));
+-
+-	//deep copy, with preference given to incoming options
+-	for(let key in options) {
+-		newOptions[key] = options[key];
+-	}
+-
+-	//run
+-	return PDFJS(dataBuffer, newOptions).then(function(data) {
+-		//success
+-		return data;
+-	}).catch(function(err) {
+-		//error
+-		throw err;
+-	});
+-};
+-
+-module.exports = PDF;
+-
+-
+-
+-
+-
+-
+-
+-
++module.exports = require('./lib/pdf-parse.js');
+\ No newline at end of file

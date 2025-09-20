@@ -30,6 +30,14 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  webpack: (config, { isServer }) => {
+    // Exclude pdf-parse from server-side bundle
+    if (isServer) {
+        config.externals.push('pdf-parse');
+    }
+
+    return config;
+  },
 };
 
 export default nextConfig;
