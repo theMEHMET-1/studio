@@ -5,7 +5,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { Button } from '@/components/ui/button'; // New import
+import { Button } from '@/components/ui/button';
 import {
   FaceLandmarker,
   PoseLandmarker,
@@ -24,14 +24,13 @@ const EYE_ASPECT_RATIO_THRESHOLD = 0.175;
 const BLINK_CONSECUTIVE_FRAMES = 1;
 const MINBLINK = 10;
 const MAXBLINK = 30;
+const CHEEKBONESMAX = 1; 
+const CHEEKBONESMIN = -5;
 
 let blinkCounter = 0;
 let isBlinking = false;
 let blinkTimestamps: number[] = [];
 
-
-// Slouch detection constants
-const SLOUCH_THRESHOLD = 0.05;
 
 export function WebcamFocus() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -212,6 +211,13 @@ export function WebcamFocus() {
             }
         }
 
+        // If you are looking at the frame or not
+        const cheekbonesDif = distance(landmarks[8], landmarks[6])*100 - distance(landmarks[7], landmarks[3])*100
+        if (cheekbonesDif < CHEEKBONESMIN || cheekbonesDif > CHEEKBONESMAX) {
+            currentFocusPenalty += 0.2
+        }
+
+
         // Draw face landmarks
         drawingUtils.drawConnectors(
           landmarks,
@@ -225,33 +231,16 @@ export function WebcamFocus() {
 
       }
 
-      //if (poseResults.landmarks && poseResults.landmarks.length > 0) {
-      //  const landmarks = poseResults.landmarks[0];
+      if (poseResults.landmarks && poseResults.landmarks.length > 0) {
+        const landmarks = poseResults.landmarks[0];
 
-      //  const leftShoulder = landmarks[11];
-      //  const rightShoulder = landmarks[12];
-      //  const leftHip = landmarks[23];
-      //  const rightHip = landmarks[24];
-
-      //  
-      //  if(leftShoulder && rightShoulder && leftHip && rightHip) {
-      //    const shoulderY = (leftShoulder.y + rightShoulder.y) / 2;
-      //    const hipY = (leftHip.y + rightHip.y) / 2;
-      //    
-      //    // Simplified slouch detection
-      //    if (shoulderY > hipY + SLOUCH_THRESHOLD) {
-      //       isSlouching = true;
-      //       currentFocusPenalty += 0.2; // Heavier penalty for slouching
-      //    }
-      //  }
-
-      //  // Draw pose landmarks
-      //  drawingUtils.drawConnectors(landmarks, PoseLandmarker.POSE_CONNECTIONS);
-      //  drawingUtils.drawLandmarks(landmarks, {
-      //    color: isSlouching ? '#FF0000' : '#00FF00',
-      //    radius: (data) => DrawingUtils.lerp(data.from!.z, -0.15, 0.1, 5, 1),
-      //  });
-      //}
+        // Draw pose landmarks
+        drawingUtils.drawConnectors(landmarks, PoseLandmarker.POSE_CONNECTIONS);
+        drawingUtils.drawLandmarks(landmarks, {
+          color: isSlouching ? '#FF0000' : '#00FF00',
+          radius: (data) => DrawingUtils.lerp(data.from!.z, -0.15, 0.1, 5, 1),
+        });
+      }
 
       canvasCtx.restore();
 
