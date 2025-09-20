@@ -32,7 +32,7 @@ const nextConfig: NextConfig = {
   },
   webpack: (config, { isServer }) => {
     if (isServer) {
-        config.externals = [...config.externals, 'pdf-parse'];
+        config.externals.push('pdf-parse');
     }
 
     return config;
