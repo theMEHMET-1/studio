@@ -566,8 +566,8 @@ export function WebcamFocus() {
                 <Input
                   id="criticalScoreThreshold"
                   type="number"
-                  value={localSettings.criticalScoreThreshold || ''}
-                  onChange={(e) => setLocalSettings({ ...localSettings, criticalScoreThreshold: e.target.value })}
+                  value={settings.criticalScoreThreshold || ''}
+                  onChange={(e) => setLocalSettings({ ...settings, criticalScoreThreshold: e.target.value })}
                   className="col-span-3"
                 />
               </div>
