@@ -56,7 +56,9 @@ export function WebcamFocus() {
   const { toast } = useToast();
 
   const [hasWarned, setHasWarned] = useState(false);
+  const [hasCriticalWarned, setHasCriticalWarned] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const criticalAudioRef = useRef<HTMLAudioElement | null>(null);
   const startTimeRef = useRef(Date.now());
   const [isStarted, setIsStarted] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
@@ -67,6 +69,7 @@ export function WebcamFocus() {
 
   const GRACE_PERIOD_MS = 60000;
   const AUDIO_URL = 'https://files.catbox.moe/6mqp49.mp3';
+  const CRITICAL_AUDIO_URL = 'https://files.catbox.moe/8vd1ej.mp3';
 
   // State for real-time indicators and session statistics
   const [blinksPerMinute, setBlinksPerMinute] = useState(0);
@@ -82,6 +85,7 @@ export function WebcamFocus() {
   // State for settings
   const [settings, setSettings] = useState({
     scoreThreshold: 70,
+    criticalScoreThreshold: 20,
     minBlinks: 10,
     maxBlinks: 30,
     slouchPenalty: 0.05,
@@ -95,6 +99,9 @@ export function WebcamFocus() {
   useEffect(() => {
     if (!audioRef.current) {
       audioRef.current = new Audio(AUDIO_URL);
+    }
+    if (!criticalAudioRef.current) {
+      criticalAudioRef.current = new Audio(CRITICAL_AUDIO_URL);
     }
   }, []);
 
@@ -125,7 +132,18 @@ export function WebcamFocus() {
   }, []);
 
   useEffect(() => {
-    if (focusScore < settings.scoreThreshold && !hasWarned && isStarted) {
+    if (focusScore < settings.criticalScoreThreshold && !hasCriticalWarned && isStarted) {
+      if (criticalAudioRef.current && !isMuted) {
+        criticalAudioRef.current.play().catch((e) => console.error('Critical audio playback failed:', e));
+      }
+      toast({
+        variant: 'destructive',
+        title: 'Warning! Low Score!',
+        description: `Seems like you're having a hard time focusing right now. Consider taking a break.`,
+      });
+      setHasCriticalWarned(true);
+      setHasWarned(true); // Also set the regular warning to true to prevent it from firing
+    } else if (focusScore < settings.scoreThreshold && !hasWarned && !hasCriticalWarned && isStarted) {
       if (audioRef.current && !isMuted) {
         audioRef.current.play().catch((e) => console.error('Audio playback failed:', e));
       }
@@ -137,8 +155,9 @@ export function WebcamFocus() {
       setHasWarned(true);
     } else if (focusScore >= settings.scoreThreshold && hasWarned) {
       setHasWarned(false);
+      setHasCriticalWarned(false); // Also reset critical warning
     }
-  }, [focusScore, hasWarned, toast, settings.scoreThreshold, isMuted, isStarted]);
+  }, [focusScore, hasWarned, hasCriticalWarned, toast, settings.scoreThreshold, settings.criticalScoreThreshold, isMuted, isStarted]);
 
   const stopWebcam = () => {
     if (videoRef.current && videoRef.current.srcObject) {
@@ -180,6 +199,7 @@ export function WebcamFocus() {
     setSessionScores([]);
     setSessionBlinkRates([]);
     setHasWarned(false);
+    setHasCriticalWarned(false);
     blinkTimestamps = [];
     blinkCounter = 0;
     isBlinking = false;
@@ -478,7 +498,7 @@ export function WebcamFocus() {
 
       <div className="flex gap-4 mt-4">
         {isStarted && (
-          <Button variant="outline" onClick={endWebcam} className="hover:bg-red-500 hover:text-white">
+          <Button variant="outline" onClick={endWebcam} className="hover:bg-red-400 hover:text-white">
             <X className="mr-2 h-4 w-4" />
             End Session
           </Button>
@@ -531,6 +551,18 @@ export function WebcamFocus() {
                   type="number"
                   value={localSettings.scoreThreshold || ''}
                   onChange={(e) => setLocalSettings({ ...localSettings, scoreThreshold: e.target.value })}
+                  className="col-span-3"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="criticalScoreThreshold" className="text-right">
+                  Critical Alert Score
+                </Label>
+                <Input
+                  id="criticalScoreThreshold"
+                  type="number"
+                  value={localSettings.criticalScoreThreshold || ''}
+                  onChange={(e) => setLocalSettings({ ...localSettings, criticalScoreThreshold: e.target.value })}
                   className="col-span-3"
                 />
               </div>
