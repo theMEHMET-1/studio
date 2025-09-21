@@ -12,7 +12,7 @@ import {
   FilesetResolver,
   DrawingUtils,
 } from '@mediapipe/tasks-vision';
-import {calculateEAR, distance} from "./utils.ts";
+import {calculateEAR, distance} from "./utils.js";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -25,10 +25,12 @@ let drawingUtils: DrawingUtils;
 let lastVideoTime = -1;
 
 // Blink detection constants
-const EYE_ASPECT_RATIO_THRESHOLD = 0.175;
+const EYE_ASPECT_RATIO_THRESHOLD = 0.3;
 const BLINK_CONSECUTIVE_FRAMES = 1;
-const CHEEKBONESMAX = 1; 
-const CHEEKBONESMIN = -5;
+const MINBLINK = 3;
+const MAXBLINK = 30;
+const CHEEKBONESMAX = 0.5; 
+const CHEEKBONESMIN = -4.5;
 
 let blinkCounter = 0;
 let isBlinking = false;
