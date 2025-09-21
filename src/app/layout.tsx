@@ -3,8 +3,8 @@ import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 
 export const metadata: Metadata = {
-  title: 'ClarityMD',
-  description: 'Patient-friendly medical report summaries.',
+  title: 'FocusUp',
+  description: 'A browser buddy to help you stay focused on your work!',
 };
 
 export default function RootLayout({
