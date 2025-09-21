@@ -12,7 +12,7 @@ import {
   FilesetResolver,
   DrawingUtils,
 } from '@mediapipe/tasks-vision';
-import {calculateEAR, distance} from "./utils.ts";
+import {calculateEAR, distance} from "./utils.js";
 
 let faceLandmarker: FaceLandmarker;
 let poseLandmarker: PoseLandmarker;
@@ -20,12 +20,12 @@ let drawingUtils: DrawingUtils;
 let lastVideoTime = -1;
 
 // Blink detection constants
-const EYE_ASPECT_RATIO_THRESHOLD = 0.175;
+const EYE_ASPECT_RATIO_THRESHOLD = 0.3;
 const BLINK_CONSECUTIVE_FRAMES = 1;
-const MINBLINK = 10;
+const MINBLINK = 3;
 const MAXBLINK = 30;
-const CHEEKBONESMAX = 1; 
-const CHEEKBONESMIN = -5;
+const CHEEKBONESMAX = 0.5; 
+const CHEEKBONESMIN = -4.5;
 
 let blinkCounter = 0;
 let isBlinking = false;
@@ -44,7 +44,7 @@ export function WebcamFocus() {
   const [hasWarned, setHasWarned] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const startTimeRef = useRef(Date.now());
-  const [isStarted, setIsStarted] = useState(false); // New state to track if the session has started
+  const [isStarted, setIsStarted] = useState(false); 
 
   const SCORE_THRESHOLD = 70;
   const GRACE_PERIOD_MS = 60000;
@@ -216,7 +216,6 @@ export function WebcamFocus() {
         if (cheekbonesDif < CHEEKBONESMIN || cheekbonesDif > CHEEKBONESMAX) {
             currentFocusPenalty += 0.2
         }
-
 
         // Draw face landmarks
         drawingUtils.drawConnectors(
