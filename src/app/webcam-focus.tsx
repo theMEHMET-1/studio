@@ -12,7 +12,12 @@ import {
   FilesetResolver,
   DrawingUtils,
 } from '@mediapipe/tasks-vision';
-import {calculateEAR, distance, angleBetween, midpoint} from "./utils.js";
+import {calculateEAR, distance} from "./utils.ts";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Settings } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
 
 let faceLandmarker: FaceLandmarker;
 let poseLandmarker: PoseLandmarker;
@@ -22,8 +27,6 @@ let lastVideoTime = -1;
 // Blink detection constants
 const EYE_ASPECT_RATIO_THRESHOLD = 0.175;
 const BLINK_CONSECUTIVE_FRAMES = 1;
-const MINBLINK = 10;
-const MAXBLINK = 30;
 const CHEEKBONESMAX = 1; 
 const CHEEKBONESMIN = -5;
 
@@ -44,11 +47,30 @@ export function WebcamFocus() {
   const [hasWarned, setHasWarned] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const startTimeRef = useRef(Date.now());
-  const [isStarted, setIsStarted] = useState(false); // New state to track if the session has started
+  const [isStarted, setIsStarted] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
 
-  const SCORE_THRESHOLD = 70;
   const GRACE_PERIOD_MS = 60000;
   const AUDIO_URL = 'https://files.catbox.moe/6mqp49.mp3';
+
+  // State for real-time indicators
+  const [blinksPerMinute, setBlinksPerMinute] = useState(0);
+  const [isSlouching, setIsSlouching] = useState(false);
+  const [isNotLooking, setIsNotLooking] = useState(false);
+
+  // State for settings
+  const [settings, setSettings] = useState({
+    scoreThreshold: 70,
+    minBlinks: 10,
+    maxBlinks: 30,
+    slouchPenalty: 0.2,
+    notLookingPenalty: 0.2,
+    blinkPenalty: 0.1
+  });
+
+  // Local state for dialog inputs, now as strings
+  const [localSettings, setLocalSettings] = useState<Record<string, string>>({});
+
 
   // Initialize the audio object on component mount
   useEffect(() => {
@@ -85,26 +107,24 @@ export function WebcamFocus() {
 
   // Effect to watch for score changes and trigger alerts
   useEffect(() => {
-    if (focusScore < SCORE_THRESHOLD && !hasWarned) {
-      if (audioRef.current) {
-        // audioRef.current.play() is now safe to call here because the user has
-        // already interacted with the page to start the session.
+    if (focusScore < settings.scoreThreshold && !hasWarned) {
+      if (audioRef.current && !isMuted) {
         audioRef.current.play().catch(e => console.error("Audio playback failed:", e));
       }
       toast({
         variant: 'destructive',
-        title: 'Focus Alert!',
-        description: `Your focus score dropped to ${Math.round(focusScore)}%`,
+        title: 'Alert! Eyes & Posture Check!',
+        description: `Your score has dropped to ${Math.round(focusScore)}%`,
       });
       setHasWarned(true);
-    } else if (focusScore >= SCORE_THRESHOLD && hasWarned) {
+    } else if (focusScore >= settings.scoreThreshold && hasWarned) {
       setHasWarned(false);
     }
-  }, [focusScore, hasWarned, toast]);
+  }, [focusScore, hasWarned, toast, settings.scoreThreshold, isMuted]);
 
   // New function to handle starting the webcam session
   const startWebcam = async () => {
-    if (isStarted) return; // Prevent multiple starts
+    if (isStarted) return;
     setIsStarted(true);
 
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -177,23 +197,15 @@ export function WebcamFocus() {
       canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
 
       let currentFocusPenalty = 0;
-      let isSlouching = false;
+      let isSlouchingNow = false;
+      let isNotLookingNow = false;
       isBlinking = false;
 
       if (faceResults.faceLandmarks && faceResults.faceLandmarks.length > 0) {
-
-        
-        
-
         const landmarks = faceResults.faceLandmarks[0];
 
-        
-
-        // Left eye (indices based on MediaPipe docs)
         const leftEAR = calculateEAR(landmarks, [33, 160, 158, 133, 153, 144]);
-        // Right eye
         const rightEAR = calculateEAR(landmarks, [362, 385, 387, 263, 373, 380]);
-
         const avgEAR = (leftEAR + rightEAR) / 2;
 
         if (avgEAR < EYE_ASPECT_RATIO_THRESHOLD) {
@@ -207,22 +219,22 @@ export function WebcamFocus() {
         }
 
         const now = Date.now();
-        blinkTimestamps = blinkTimestamps.filter(timestamp => now - timestamp < 60000); // Keep last minute
-
+        blinkTimestamps = blinkTimestamps.filter(timestamp => now - timestamp < 60000);
         const blinksPerMinute = blinkTimestamps.length;
+        setBlinksPerMinute(blinksPerMinute);
 
-        if (blinksPerMinute < MINBLINK || blinksPerMinute > MAXBLINK) {
-            if (now - blinkTimestamps[0] > 30000) {
-                currentFocusPenalty += 0.1; // Small penalty per frame
-                console.log("blink better");
+        if (now - startTimeRef.current > GRACE_PERIOD_MS) {
+            if (blinksPerMinute < settings.minBlinks || blinksPerMinute > settings.maxBlinks) {
+                currentFocusPenalty += settings.blinkPenalty;
             }
         }
 
-        // If you are looking at the frame or not
         const cheekbonesDif = distance(landmarks[8], landmarks[6])*100 - distance(landmarks[7], landmarks[3])*100
         if (cheekbonesDif < CHEEKBONESMIN || cheekbonesDif > CHEEKBONESMAX) {
-            currentFocusPenalty += 0.2
+            currentFocusPenalty += settings.notLookingPenalty;
+            isNotLookingNow = true;
         }
+        setIsNotLooking(isNotLookingNow);
 
 
         // Draw face landmarks
@@ -236,34 +248,31 @@ export function WebcamFocus() {
         drawingUtils.drawConnectors(landmarks, FaceLandmarker.FACE_LANDMARKS_LEFT_EYE, { color: eyeColor });
         drawingUtils.drawConnectors(landmarks, FaceLandmarker.FACE_LANDMARKS_RIGHT_EYE, { color: eyeColor });
 
+      }
 
-
-        // blinking done
+      if (poseResults.landmarks && poseResults.landmarks.length > 0) {
+        const landmarks = poseResults.landmarks[0];
         
-        const bodylandmarks = poseResults.landmarks[0];
-        const midpointarray = midpoint(bodylandmarks[11], bodylandmarks[12]);
+        const leftShoulder = landmarks[11];
+        const rightShoulder = landmarks[12];
+        const leftHip = landmarks[23];
+        const rightHip = landmarks[24];
 
-        const angle = angleBetween(bodylandmarks[0], midpointarray[0], midpointarray[1], midpointarray[0], midpointarray[1] - 1);
-        
-        const avgEarY = (landmarks[7].y + landmarks[8].y) / 2;
-
-        const distHeadToShoulder = distance(landmarks[0], midpointarray);
-        
-        // if (distHeadToShoulder < baseline * 0.8) { // needs a calibration period
-        //   focusScore -= 5;
-
-        console.log(landmarks[0].y, " nose y");
-        console.log(avgEarY, "  avg ear y");
-        if (angle > 20 && (landmarks[0].y < avgEarY + - 0.03 || landmarks[0].y > avgEarY - 0.045)) {
-          currentFocusPenalty += .05; // slouch penalty
-          console.log("SLOUCH");
+        if(leftShoulder && rightShoulder && leftHip && rightHip) {
+          const shoulderY = (leftShoulder.y + rightShoulder.y) / 2;
+          const hipY = (leftHip.y + rightHip.y) / 2;
+          
+          if (shoulderY > hipY + 0.05) {
+             currentFocusPenalty += settings.slouchPenalty;
+             isSlouchingNow = true;
+          }
         }
-        
+        setIsSlouching(isSlouchingNow);
         
         // Draw pose landmarks
-        drawingUtils.drawConnectors(bodylandmarks, PoseLandmarker.POSE_CONNECTIONS);
-        drawingUtils.drawLandmarks(bodylandmarks, {
-          color: isSlouching ? '#FF0000' : '#00FF00',
+        drawingUtils.drawConnectors(landmarks, PoseLandmarker.POSE_CONNECTIONS);
+        drawingUtils.drawLandmarks(landmarks, {
+          color: isSlouchingNow ? '#FF0000' : '#00FF00',
           radius: (data) => DrawingUtils.lerp(data.from!.z, -0.15, 0.1, 5, 1),
         });
       }
@@ -272,13 +281,12 @@ export function WebcamFocus() {
 
       setFocusScore(prevScore => {
         if (poseResults.landmarks.length == 0){
-          return prevScore - 0.01;
+          return prevScore - 0.02;
         }
-
         if (currentFocusPenalty > 0) {
           return Math.max(0, prevScore - currentFocusPenalty);
         }
-        return Math.min(100, prevScore + 0.025);
+        return Math.min(100, prevScore + 0.05);
       });
     }
 
@@ -311,7 +319,6 @@ export function WebcamFocus() {
                 </Alert>
               </div>
             )}
-            {/* Show a start button if the session hasn't started */}
             {!isStarted && (
               <div className="absolute inset-0 flex items-center justify-center p-4 bg-black/50">
                 <Button onClick={startWebcam}>Start Webcam Session</Button>
@@ -332,8 +339,148 @@ export function WebcamFocus() {
               {Math.round(focusScore)}%
             </span>
           </div>
+          <div className="mt-4 space-y-2 text-sm">
+            <p><strong>Blinks Per Minute:</strong> {blinksPerMinute}</p>
+            <p><strong>Posture:</strong> {isSlouching ? <span className="text-red-500">Slouching</span> : <span className="text-green-500">Good</span>}</p>
+            <p><strong>Looking at Screen:</strong> {isNotLooking ? <span className="text-red-500">No</span> : <span className="text-green-500">Yes</span>}</p>
+          </div>
         </CardContent>
       </Card>
+
+      {/* Settings Dialog */}
+      <Dialog
+        onOpenChange={(open) => {
+          if (!open) {
+            // Validate and update settings only when closing the dialog
+            const newSettings = {...localSettings};
+            const updatedSettings: Record<string, number> = {};
+
+            // Loop through each setting to convert from string to number
+            for (const key in newSettings) {
+                const value = newSettings[key as keyof typeof newSettings];
+                const numValue = parseFloat(value);
+                // Check if the input is a valid number, otherwise use the old setting
+                if (value.trim() !== '' && !isNaN(numValue)) {
+                    updatedSettings[key] = numValue;
+                } else {
+                    updatedSettings[key] = settings[key as keyof typeof settings];
+                }
+            }
+            setSettings(updatedSettings as typeof settings);
+          } else {
+            // Populate localSettings with current settings as strings when opening
+            const stringifiedSettings = Object.fromEntries(
+                Object.entries(settings).map(([key, value]) => [key, String(value)])
+            );
+            setLocalSettings(stringifiedSettings);
+          }
+        }}
+      >
+        <DialogTrigger asChild>
+          <Button variant="outline" className="mt-4">
+            <Settings className="mr-2 h-4 w-4" />
+            Settings
+          </Button>
+        </DialogTrigger>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Adjust Focus Settings</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            {/* Mute toggle */}
+            <div className="flex items-center justify-between">
+              <Label htmlFor="mute-alerts">Mute Alerts</Label>
+              <Switch
+                id="mute-alerts"
+                checked={isMuted}
+                onCheckedChange={setIsMuted}
+              />
+            </div>
+            {/* Input fields */}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="scoreThreshold" className="text-right">
+                Alert Score
+              </Label>
+              <Input
+                id="scoreThreshold"
+                type="number"
+                value={localSettings.scoreThreshold}
+                onChange={(e) => setLocalSettings({...localSettings, scoreThreshold: e.target.value})}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="minBlinks" className="text-right">
+                Min Blinks
+              </Label>
+              <Input
+                id="minBlinks"
+                type="number"
+                value={localSettings.minBlinks}
+                onChange={(e) => setLocalSettings({...localSettings, minBlinks: e.target.value})}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="maxBlinks" className="text-right">
+                Max Blinks
+              </Label>
+              <Input
+                id="maxBlinks"
+                type="number"
+                value={localSettings.maxBlinks}
+                onChange={(e) => setLocalSettings({...localSettings, maxBlinks: e.target.value})}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="blinkPenalty" className="text-right">
+                Blink Penalty
+              </Label>
+              <Input
+                id="blinkPenalty"
+                type="number"
+                step="0.01"
+                value={localSettings.blinkPenalty}
+                onChange={(e) => setLocalSettings({...localSettings, blinkPenalty: e.target.value})}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="slouchPenalty" className="text-right">
+                Slouch Penalty
+              </Label>
+              <Input
+                id="slouchPenalty"
+                type="number"
+                step="0.01"
+                value={localSettings.slouchPenalty}
+                onChange={(e) => setLocalSettings({...localSettings, slouchPenalty: e.target.value})}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="notLookingPenalty" className="text-right">
+                Not Looking Penalty
+              </Label>
+              <Input
+                id="notLookingPenalty"
+                type="number"
+                step="0.01"
+                value={localSettings.notLookingPenalty}
+                onChange={(e) => setLocalSettings({...localSettings, notLookingPenalty: e.target.value})}
+                className="col-span-3"
+              />
+            </div>
+          </div>
+          <div className="text-center text-xs text-gray-500">
+            Your data is processed locally. Read our{' '}
+            <a href="/privacy-policy" className="underline" target="_blank" rel="noopener noreferrer">
+              Privacy Policy
+            </a>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
