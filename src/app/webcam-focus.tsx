@@ -37,10 +37,10 @@ let lastVideoTime = -1;
 let animationFrameId: number;
 
 // Blink detection constants
-const EYE_ASPECT_RATIO_THRESHOLD = 0.175;
+let EYE_ASPECT_RATIO_THRESHOLD = 0.3;
 const BLINK_CONSECUTIVE_FRAMES = 1;
-const CHEEKBONESMAX = 0.5;
-const CHEEKBONESMIN = -4.5;
+const LOOKINGMAX = 2.2;
+const LOOKINGMIN = 0.5;
 
 let blinkCounter = 0;
 let isBlinking = false;
@@ -91,6 +91,7 @@ export function WebcamFocus() {
     slouchPenalty: 0.05,
     notLookingPenalty: 0.05,
     blinkPenalty: 0.05,
+    EAR: 0.175,
   });
 
   // Local state for dialog inputs, now as strings
@@ -302,7 +303,7 @@ export function WebcamFocus() {
       ]);
       const avgEAR = (leftEAR + rightEAR) / 2;
 
-      if (avgEAR < EYE_ASPECT_RATIO_THRESHOLD) {
+      if (avgEAR < settings.EAR) {
         blinkCounter++;
       } else {
         if (blinkCounter >= BLINK_CONSECUTIVE_FRAMES) {
@@ -326,9 +327,8 @@ export function WebcamFocus() {
         }
       }
 
-      const cheekbonesDif =
-        distance(landmarks[8], landmarks[6]) * 100 - distance(landmarks[7], landmarks[3]) * 100;
-      if (cheekbonesDif < CHEEKBONESMIN || cheekbonesDif > CHEEKBONESMAX) {
+      const noseDif = distance(landmarks[8], landmarks[0])*100 - distance(landmarks[7], landmarks[0])*100
+      if (noseDif > LOOKINGMAX || noseDif < LOOKINGMIN) {
         currentFocusPenalty += settings.notLookingPenalty;
         isNotLookingNow = true;
       }
@@ -627,6 +627,17 @@ export function WebcamFocus() {
                   step="0.01"
                   value={localSettings.notLookingPenalty || ''}
                   onChange={(e) => setLocalSettings({ ...localSettings, notLookingPenalty: e.target.value })}
+                  className="col-span-3"
+                />
+                <Label htmlFor="EAR" className="text-right">
+                  Eye aspect ratio
+                </Label>
+                <Input
+                  id="EAR"
+                  type="number"
+                  step="0.01"
+                  value={localSettings.EAR || ''}
+                  onChange={(e) => setLocalSettings({ ...localSettings, EAR: e.target.value })}
                   className="col-span-3"
                 />
               </div>
