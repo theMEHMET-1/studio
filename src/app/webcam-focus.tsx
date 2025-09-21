@@ -37,10 +37,10 @@ let lastVideoTime = -1;
 let animationFrameId: number;
 
 // Blink detection constants
-const EYE_ASPECT_RATIO_THRESHOLD = 0.175;
+let EYE_ASPECT_RATIO_THRESHOLD = 0.3;
 const BLINK_CONSECUTIVE_FRAMES = 1;
-const CHEEKBONESMAX = 0.5;
-const CHEEKBONESMIN = -4.5;
+const LOOKINGMAX = 2.2;
+const LOOKINGMIN = 0.5;
 
 let blinkCounter = 0;
 let isBlinking = false;
@@ -65,7 +65,7 @@ export function WebcamFocus() {
   // New state to manage the initial detection grace period
   const isFirstDetection = useRef(true);
 
-  const GRACE_PERIOD_MS = 60000;
+  const GRACE_PERIOD_MS = 10000;
   const AUDIO_URL = 'https://files.catbox.moe/6mqp49.mp3';
 
   // State for real-time indicators and session statistics
@@ -82,11 +82,12 @@ export function WebcamFocus() {
   // State for settings
   const [settings, setSettings] = useState({
     scoreThreshold: 70,
-    minBlinks: 10,
-    maxBlinks: 30,
+    minBlinks: 5,
+    maxBlinks: 15,
     slouchPenalty: 0.05,
     notLookingPenalty: 0.05,
     blinkPenalty: 0.05,
+    EAR: 0.175,
   });
 
   // Local state for dialog inputs, now as strings
@@ -282,7 +283,7 @@ export function WebcamFocus() {
       ]);
       const avgEAR = (leftEAR + rightEAR) / 2;
 
-      if (avgEAR < EYE_ASPECT_RATIO_THRESHOLD) {
+      if (avgEAR < settings.EAR) {
         blinkCounter++;
       } else {
         if (blinkCounter >= BLINK_CONSECUTIVE_FRAMES) {
@@ -294,7 +295,7 @@ export function WebcamFocus() {
 
       const now = Date.now();
       blinkTimestamps = blinkTimestamps.filter(
-        (timestamp) => now - timestamp < 60000
+        (timestamp) => now - timestamp < 30000
       );
       const blinksPerMinute = blinkTimestamps.length;
       setBlinksPerMinute(blinksPerMinute);
@@ -306,9 +307,8 @@ export function WebcamFocus() {
         }
       }
 
-      const cheekbonesDif =
-        distance(landmarks[8], landmarks[6]) * 100 - distance(landmarks[7], landmarks[3]) * 100;
-      if (cheekbonesDif < CHEEKBONESMIN || cheekbonesDif > CHEEKBONESMAX) {
+      const noseDif = distance(landmarks[8], landmarks[0])*100 - distance(landmarks[7], landmarks[0])*100
+      if (noseDif > LOOKINGMAX || noseDif < LOOKINGMIN) {
         currentFocusPenalty += settings.notLookingPenalty;
         isNotLookingNow = true;
       }
@@ -368,21 +368,22 @@ export function WebcamFocus() {
       return;
     }
     
-    // Check if the user is in a good posture and looking at the camera
-    if (!isSlouchingNow && !isNotLookingNow) {
-        setFocusScore((prevScore) => {
-            const newScore = Math.min(100, prevScore + 0.025);
-            setSessionScores((prev) => [...prev, newScore]);
-            return newScore;
-        });
-    } else {
-        // If the user is in a bad posture or not looking, apply the penalty
-        setFocusScore((prevScore) => {
-            const newScore = Math.max(0, prevScore - currentFocusPenalty);
-            setSessionScores((prev) => [...prev, newScore]);
-            return newScore;
-        });
-    }
+
+    setFocusScore(prevScore => {
+        if (poseResults.landmarks.length == 0){
+          setSessionScores((prev) => [...prev, prevScore - 0.01]);
+          return prevScore - 0.01;
+        }
+        if (currentFocusPenalty > 0) {
+          setSessionScores((prev) => [...prev, Math.max(0, prevScore - currentFocusPenalty)]);
+
+          return Math.max(0, prevScore - currentFocusPenalty);
+        }
+        setSessionScores((prev) => [...prev, prevScore + 0.025]);
+
+        return Math.min(100, prevScore + 0.025);
+      });
+    
 
 
     animationFrameId = requestAnimationFrame(predictWebcam);
@@ -428,7 +429,7 @@ export function WebcamFocus() {
                     <strong>Average Score:</strong> {averageScore}%
                   </p>
                   <p>
-                    <strong>Average Blinks Per Minute:</strong> {averageBlinks}
+                    <strong>Average Blinks Per 30s:</strong> {averageBlinks}
                   </p>
                   <p className="max-w-xs mx-auto mt-4">
                     {getPerformanceComment(averageScore)}
@@ -453,7 +454,7 @@ export function WebcamFocus() {
             </div>
             <div className="mt-4 space-y-2 text-sm">
               <p>
-                <strong>Blinks Per Minute:</strong> {blinksPerMinute}
+                <strong>Blinks Per 30s:</strong> {blinksPerMinute}
               </p>
               <p>
                 <strong>Posture:</strong>{' '}
@@ -594,6 +595,17 @@ export function WebcamFocus() {
                   step="0.01"
                   value={localSettings.notLookingPenalty || ''}
                   onChange={(e) => setLocalSettings({ ...localSettings, notLookingPenalty: e.target.value })}
+                  className="col-span-3"
+                />
+                <Label htmlFor="EAR" className="text-right">
+                  Eye aspect ratio
+                </Label>
+                <Input
+                  id="EAR"
+                  type="number"
+                  step="0.01"
+                  value={localSettings.EAR || ''}
+                  onChange={(e) => setLocalSettings({ ...localSettings, EAR: e.target.value })}
                   className="col-span-3"
                 />
               </div>
