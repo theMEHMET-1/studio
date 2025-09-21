@@ -1,5 +1,35 @@
-# Firebase Studio
+# Bollocks
+## _every day is a gamble and gambling is awesome._
 
-This is a NextJS starter in Firebase Studio.
+## Features
 
-To get started, take a look at src/app/page.tsx.
+
+## Running
+> [!Note]
+> Install node and npm
+
+
+Clone the repository
+```
+git clone https://github.com/theMEHMET-1/studio.git
+```
+
+Change into the directory
+```
+cd studio
+```
+
+Install the npm packages
+```
+npm install
+```
+
+Build the website
+```
+npm run build
+```
+
+Run the website
+```
+npm run start
+```
