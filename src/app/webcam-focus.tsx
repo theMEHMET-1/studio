@@ -12,7 +12,7 @@ import {
   FilesetResolver,
   DrawingUtils,
 } from '@mediapipe/tasks-vision';
-import {calculateEAR, distance} from "./utils.js";
+import {calculateEAR, distance, angleBetween, midpoint} from "./utils.js";
 
 let faceLandmarker: FaceLandmarker;
 let poseLandmarker: PoseLandmarker;
@@ -181,7 +181,13 @@ export function WebcamFocus() {
       isBlinking = false;
 
       if (faceResults.faceLandmarks && faceResults.faceLandmarks.length > 0) {
+
+        
+        
+
         const landmarks = faceResults.faceLandmarks[0];
+
+        
 
         // Left eye (indices based on MediaPipe docs)
         const leftEAR = calculateEAR(landmarks, [33, 160, 158, 133, 153, 144]);
@@ -208,6 +214,7 @@ export function WebcamFocus() {
         if (blinksPerMinute < MINBLINK || blinksPerMinute > MAXBLINK) {
             if (now - blinkTimestamps[0] > 30000) {
                 currentFocusPenalty += 0.1; // Small penalty per frame
+                console.log("blink better");
             }
         }
 
@@ -228,14 +235,33 @@ export function WebcamFocus() {
         drawingUtils.drawConnectors(landmarks, FaceLandmarker.FACE_LANDMARKS_LEFT_EYE, { color: eyeColor });
         drawingUtils.drawConnectors(landmarks, FaceLandmarker.FACE_LANDMARKS_RIGHT_EYE, { color: eyeColor });
 
-      }
 
-      if (poseResults.landmarks && poseResults.landmarks.length > 0) {
-        const landmarks = poseResults.landmarks[0];
 
+        // blinking done
+        
+        const bodylandmarks = poseResults.landmarks[0];
+        const midpointarray = midpoint(bodylandmarks[11], bodylandmarks[12]);
+
+        const angle = angleBetween(bodylandmarks[0], midpointarray[0], midpointarray[1], midpointarray[0], midpointarray[1] - 1);
+        
+        const avgEarY = (landmarks[7].y + landmarks[8].y) / 2;
+
+        const distHeadToShoulder = distance(landmarks[0], midpointarray);
+        
+        // if (distHeadToShoulder < baseline * 0.8) { // needs a calibration period
+        //   focusScore -= 5;
+
+        console.log(landmarks[0].y, " nose y");
+        console.log(avgEarY, "  avg ear y");
+        if (angle > 20 && (landmarks[0].y < avgEarY + - 0.03 || landmarks[0].y > avgEarY - 0.045)) {
+          currentFocusPenalty += .05; // slouch penalty
+          console.log("SLOUCH");
+        }
+        
+        
         // Draw pose landmarks
-        drawingUtils.drawConnectors(landmarks, PoseLandmarker.POSE_CONNECTIONS);
-        drawingUtils.drawLandmarks(landmarks, {
+        drawingUtils.drawConnectors(bodylandmarks, PoseLandmarker.POSE_CONNECTIONS);
+        drawingUtils.drawLandmarks(bodylandmarks, {
           color: isSlouching ? '#FF0000' : '#00FF00',
           radius: (data) => DrawingUtils.lerp(data.from!.z, -0.15, 0.1, 5, 1),
         });
@@ -245,13 +271,13 @@ export function WebcamFocus() {
 
       setFocusScore(prevScore => {
         if (poseResults.landmarks.length == 0){
-          return prevScore - 0.02;
+          return prevScore - 0.01;
         }
 
         if (currentFocusPenalty > 0) {
           return Math.max(0, prevScore - currentFocusPenalty);
         }
-        return Math.min(100, prevScore + 0.05);
+        return Math.min(100, prevScore + 0.025);
       });
     }
 
