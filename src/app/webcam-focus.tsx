@@ -67,9 +67,7 @@ export function WebcamFocus() {
     maxBlinks: 30,
     slouchPenalty: 0.05,
     notLookingPenalty: 0.05,
-    blinkPenalty: 0.05,
-    slouchThresholdMin: -0.045, // New setting
-    slouchThresholdMax: -0.03, // New setting
+    blinkPenalty: 0.05
   });
 
   // Local state for dialog inputs, now as strings
