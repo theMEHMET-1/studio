@@ -66,7 +66,7 @@ export function WebcamFocus() {
   // New state to manage the initial detection grace period
   const isFirstDetection = useRef(true);
 
-  const GRACE_PERIOD_MS = 10000;
+  const GRACE_PERIOD_MS = 30000;
   const AUDIO_URL = 'https://files.catbox.moe/6mqp49.mp3';
   const CRITICAL_AUDIO_URL = 'https://files.catbox.moe/8vd1ej.mp3';
 
@@ -203,17 +203,30 @@ export function WebcamFocus() {
     blinkTimestamps = [];
     blinkCounter = 0;
     isBlinking = false;
-    // Resetting these states is the key to fixing the bug
     setIsSlouching(false);
     setIsNotLooking(false);
-    isFirstDetection.current = true; // Resetting the first detection flag
-    startWebcam();
+    startWebcam(); // Call startWebcam to handle the full session start logic
   };
 
   const startWebcam = async () => {
-    stopWebcam(); // Explicitly stop any existing sessions before starting a new one
+    stopWebcam(); // Ensure any existing session is stopped
     setIsStarted(true);
     setShowStats(false);
+
+    // Reset session-specific state and timers here
+    setFocusScore(100);
+    setSessionScores([]);
+    setSessionBlinkRates([]);
+    setHasWarned(false);
+    setHasCriticalWarned(false);
+    blinkTimestamps = [];
+    blinkCounter = 0;
+    isBlinking = false;
+    setIsSlouching(false);
+    setIsNotLooking(false);
+    isFirstDetection.current = true;
+    startTimeRef.current = Date.now();
+
 
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       setHasCameraPermission(false);
@@ -320,14 +333,10 @@ export function WebcamFocus() {
       setBlinksPerMinute(blinksPerMinute);
       setSessionBlinkRates((prev) => [...prev, blinksPerMinute]);
 
-      if (now - startTimeRef.current > (GRACE_PERIOD_MS + 20000)) {
+      if (now - startTimeRef.current > GRACE_PERIOD_MS) {
         if (blinksPerMinute < settings.minBlinks || blinksPerMinute > settings.maxBlinks) {
           currentFocusPenalty += settings.blinkPenalty;
         }
-      } else if (30000 > (now - startTimeRef.current)) {
-          if (blinksPerMinute < 2) {
-            currentFocusPenalty += settings.blinkPenalty;
-          }
       }
 
       const noseDif = distance(landmarks[8], landmarks[0])*100 - distance(landmarks[7], landmarks[0])*100
@@ -534,7 +543,6 @@ export function WebcamFocus() {
           <DialogTrigger asChild>
             <Button variant="outline">
               <Settings className="mr-2 h-4 w-4" />
-              Settings
             </Button>
           </DialogTrigger>
           <DialogContent>
