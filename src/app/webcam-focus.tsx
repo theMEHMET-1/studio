@@ -601,7 +601,7 @@ export function WebcamFocus() {
             <div className="text-center text-xs text-gray-500">
               Your data is processed locally. Read our{' '}
               <a
-                href="/privacy-policy"
+                href="https://anotepad.com/note/read/4en4e7td"
                 className="underline"
                 target="_blank"
                 rel="noopener noreferrer"
