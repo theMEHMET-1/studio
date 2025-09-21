@@ -67,7 +67,7 @@ export function WebcamFocus() {
   // New state to manage the initial detection grace period
   const isFirstDetection = useRef(true);
 
-  const GRACE_PERIOD_MS = 30000;
+  const GRACE_PERIOD_MS = 10000;
   const AUDIO_URL = 'https://files.catbox.moe/6mqp49.mp3';
   const CRITICAL_AUDIO_URL = 'https://files.catbox.moe/8vd1ej.mp3';
 
@@ -321,10 +321,14 @@ export function WebcamFocus() {
       setBlinksPerMinute(blinksPerMinute);
       setSessionBlinkRates((prev) => [...prev, blinksPerMinute]);
 
-      if (now - startTimeRef.current > GRACE_PERIOD_MS) {
+      if (now - startTimeRef.current > (GRACE_PERIOD_MS + 20000)) {
         if (blinksPerMinute < settings.minBlinks || blinksPerMinute > settings.maxBlinks) {
           currentFocusPenalty += settings.blinkPenalty;
         }
+      } else if (30000 > now - startTimeRef.current > GRACE_PERIOD_MS) {
+          if (blinksPerMinute < 2) {
+            currentFocusPenalty += settings.blinkPenalty;
+          }
       }
 
       const noseDif = distance(landmarks[8], landmarks[0])*100 - distance(landmarks[7], landmarks[0])*100
