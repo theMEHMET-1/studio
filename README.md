@@ -1,9 +1,4 @@
-# Bollocks
-## _every day is a gamble and gambling is awesome._
-
-## Features
-
-
+# FocusUp
 ## Running
 > [!Note]
 > Install node and npm
