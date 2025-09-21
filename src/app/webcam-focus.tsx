@@ -67,7 +67,9 @@ export function WebcamFocus() {
     maxBlinks: 30,
     slouchPenalty: 0.2,
     notLookingPenalty: 0.2,
-    blinkPenalty: 0.1
+    blinkPenalty: 0.1,
+    slouchThresholdMin: -0.045, // New setting
+    slouchThresholdMax: -0.03, // New setting
   });
 
   // Local state for dialog inputs, now as strings
@@ -263,15 +265,11 @@ export function WebcamFocus() {
 
         const distHeadToShoulder = distance(bodylandmarks[0], midpointarray);
         
-        // if (distHeadToShoulder < baseline * 0.8) { // needs a calibration period
-        //   focusScore -= 5;
-
-        console.log(bodylandmarks[0].y, " nose y");
-        console.log(avgEarY, "  avg ear y");
-        if (angle > 20 && (bodylandmarks[0].y < avgEarY + - 0.03 || bodylandmarks[0].y > avgEarY - 0.045)) {
-          currentFocusPenalty += .05; // slouch penalty
-          console.log("SLOUCH");
+        if (angle > 20 && (bodylandmarks[0].y < avgEarY + settings.slouchThresholdMax || bodylandmarks[0].y > avgEarY + settings.slouchThresholdMin)) {
+          currentFocusPenalty += settings.slouchPenalty;
+          isSlouchingNow = true;
         }
+        setIsSlouching(isSlouchingNow);
         
         
         // Draw pose landmarks
@@ -474,6 +472,32 @@ export function WebcamFocus() {
                 step="0.01"
                 value={localSettings.notLookingPenalty}
                 onChange={(e) => setLocalSettings({...localSettings, notLookingPenalty: e.target.value})}
+                className="col-span-3"
+              />
+            </div>
+             <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="slouchThresholdMax" className="text-right">
+                Slouch Threshold Max
+              </Label>
+              <Input
+                id="slouchThresholdMax"
+                type="number"
+                step="0.001"
+                value={localSettings.slouchThresholdMax}
+                onChange={(e) => setLocalSettings({...localSettings, slouchThresholdMax: e.target.value})}
+                className="col-span-3"
+              />
+            </div>
+             <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="slouchThresholdMin" className="text-right">
+                Slouch Threshold Min
+              </Label>
+              <Input
+                id="slouchThresholdMin"
+                type="number"
+                step="0.001"
+                value={localSettings.slouchThresholdMin}
+                onChange={(e) => setLocalSettings({...localSettings, slouchThresholdMin: e.target.value})}
                 className="col-span-3"
               />
             </div>
