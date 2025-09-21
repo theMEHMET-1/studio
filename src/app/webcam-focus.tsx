@@ -65,7 +65,7 @@ export function WebcamFocus() {
   // New state to manage the initial detection grace period
   const isFirstDetection = useRef(true);
 
-  const GRACE_PERIOD_MS = 60000;
+  const GRACE_PERIOD_MS = 10000;
   const AUDIO_URL = 'https://files.catbox.moe/6mqp49.mp3';
 
   // State for real-time indicators and session statistics
@@ -82,8 +82,8 @@ export function WebcamFocus() {
   // State for settings
   const [settings, setSettings] = useState({
     scoreThreshold: 70,
-    minBlinks: 10,
-    maxBlinks: 30,
+    minBlinks: 5,
+    maxBlinks: 15,
     slouchPenalty: 0.05,
     notLookingPenalty: 0.05,
     blinkPenalty: 0.05,
@@ -295,7 +295,7 @@ export function WebcamFocus() {
 
       const now = Date.now();
       blinkTimestamps = blinkTimestamps.filter(
-        (timestamp) => now - timestamp < 60000
+        (timestamp) => now - timestamp < 30000
       );
       const blinksPerMinute = blinkTimestamps.length;
       setBlinksPerMinute(blinksPerMinute);
@@ -368,21 +368,22 @@ export function WebcamFocus() {
       return;
     }
     
-    // Check if the user is in a good posture and looking at the camera
-    if (!isSlouchingNow && !isNotLookingNow) {
-        setFocusScore((prevScore) => {
-            const newScore = Math.min(100, prevScore + 0.025);
-            setSessionScores((prev) => [...prev, newScore]);
-            return newScore;
-        });
-    } else {
-        // If the user is in a bad posture or not looking, apply the penalty
-        setFocusScore((prevScore) => {
-            const newScore = Math.max(0, prevScore - currentFocusPenalty);
-            setSessionScores((prev) => [...prev, newScore]);
-            return newScore;
-        });
-    }
+
+    setFocusScore(prevScore => {
+        if (poseResults.landmarks.length == 0){
+          setSessionScores((prev) => [...prev, prevScore - 0.01]);
+          return prevScore - 0.01;
+        }
+        if (currentFocusPenalty > 0) {
+          setSessionScores((prev) => [...prev, Math.max(0, prevScore - currentFocusPenalty)]);
+
+          return Math.max(0, prevScore - currentFocusPenalty);
+        }
+        setSessionScores((prev) => [...prev, prevScore + 0.025]);
+
+        return Math.min(100, prevScore + 0.025);
+      });
+    
 
 
     animationFrameId = requestAnimationFrame(predictWebcam);
@@ -428,7 +429,7 @@ export function WebcamFocus() {
                     <strong>Average Score:</strong> {averageScore}%
                   </p>
                   <p>
-                    <strong>Average Blinks Per Minute:</strong> {averageBlinks}
+                    <strong>Average Blinks Per 30s:</strong> {averageBlinks}
                   </p>
                   <p className="max-w-xs mx-auto mt-4">
                     {getPerformanceComment(averageScore)}
@@ -453,7 +454,7 @@ export function WebcamFocus() {
             </div>
             <div className="mt-4 space-y-2 text-sm">
               <p>
-                <strong>Blinks Per Minute:</strong> {blinksPerMinute}
+                <strong>Blinks Per 30s:</strong> {blinksPerMinute}
               </p>
               <p>
                 <strong>Posture:</strong>{' '}
