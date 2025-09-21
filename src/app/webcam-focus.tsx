@@ -9,8 +9,7 @@ import { Button } from '@/components/ui/button';
 import {
   FaceLandmarker,
   PoseLandmarker,
-  FilesetResolver,
-  DrawingUtils,
+  FilesetResolver, DrawingUtils,
 } from '@mediapipe/tasks-vision';
 import {
   calculateEAR,
@@ -325,7 +324,7 @@ export function WebcamFocus() {
         if (blinksPerMinute < settings.minBlinks || blinksPerMinute > settings.maxBlinks) {
           currentFocusPenalty += settings.blinkPenalty;
         }
-      } else if (30000 > now - startTimeRef.current > GRACE_PERIOD_MS) {
+      } else if (30000 > (now - startTimeRef.current)) {
           if (blinksPerMinute < 2) {
             currentFocusPenalty += settings.blinkPenalty;
           }
