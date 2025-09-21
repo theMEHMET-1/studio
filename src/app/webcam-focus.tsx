@@ -65,9 +65,9 @@ export function WebcamFocus() {
     scoreThreshold: 70,
     minBlinks: 10,
     maxBlinks: 30,
-    slouchPenalty: 0.2,
-    notLookingPenalty: 0.2,
-    blinkPenalty: 0.1,
+    slouchPenalty: 0.05,
+    notLookingPenalty: 0.05,
+    blinkPenalty: 0.05,
     slouchThresholdMin: -0.045, // New setting
     slouchThresholdMax: -0.03, // New setting
   });
@@ -265,10 +265,19 @@ export function WebcamFocus() {
 
         const distHeadToShoulder = distance(bodylandmarks[0], midpointarray);
         
-        if (angle > 20 && (bodylandmarks[0].y < avgEarY + settings.slouchThresholdMax || bodylandmarks[0].y > avgEarY + settings.slouchThresholdMin)) {
+        if (angle > 15 
+          // || bodylandmarks[0].y < avgEarY + settings.slouchThresholdMax || bodylandmarks[0].y > avgEarY + settings.slouchThresholdMin
+        ) {
           currentFocusPenalty += settings.slouchPenalty;
+          console.log("SLOUCHING");
+          
           isSlouchingNow = true;
         }
+        console.log(angle, " deg angle");
+        console.log(bodylandmarks[0].y, " nose y");
+        console.log(avgEarY, " avg ear y");
+        console.log(bodylandmarks[0].y - avgEarY, " difference in y");
+
         setIsSlouching(isSlouchingNow);
         
         
